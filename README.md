@@ -7,7 +7,7 @@ It runs a live inspection of the packets that the network adapter receive with t
 sudo apt-get install libpcap-dev
 ```
 
-## Example
+## Example
 ```
 make
 sudo ./nmp -i en0
