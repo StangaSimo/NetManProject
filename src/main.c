@@ -1,3 +1,6 @@
+
+
+
 #include <pcap/pcap.h> 
 #include <signal.h>
 #include <sched.h>
@@ -33,6 +36,10 @@ unsigned long long numPkts = 0, numBytes = 0;
 #include <ifaddrs.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+
+struct sockaddr_in broadcastIP;
+struct sockaddr_in minMultiIP;
+struct sockaddr_in maxMultiIP;
 
 /*************************************************/
 
@@ -97,6 +104,8 @@ char* proto2str(u_short proto) {
 
 /* *************************************** */
 
+struct timeval t;
+
 void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u_char *p) {
     struct ether_header ehdr;
     //u_short eth_type, vlan_id;
@@ -104,6 +113,10 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
     struct tcphdr tcp;
     struct udphdr udp;
     //struct in_addr inaddr;
+    printf("prima t :%u\n", t.tv_sec);
+    t = h->ts;
+    //memcpy(&t,&h->ts,sizeof(struct timeval));
+    printf("dopo t :%u\n", t.tv_sec);
     memcpy(&ehdr, p, sizeof(struct ether_header));
     memcpy(&ip, p+sizeof(ehdr), sizeof(struct ip));
     u_short eth_type = ntohs(ehdr.ether_type);
@@ -132,31 +145,38 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 void getBroadCast(char* device) {
     struct ifaddrs *ifaddr, *ifa;
     char *interface_name = "eth0"; // inserire il nome della scheda di rete
-    struct sockaddr_in *sa;
+    struct sockaddr_in *sa,*su;
     char subnet_mask[INET_ADDRSTRLEN];
+    char ip[INET_ADDRSTRLEN];
+    char broad[INET_ADDRSTRLEN];
     unsigned char subnet[sizeof(struct in6_addr)];
 
     if (getifaddrs(&ifaddr) == -1) {perror("getifaddrs");exit(EXIT_FAILURE);}
-
     for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
         if (strcmp(ifa->ifa_name, device) == 0 && ifa->ifa_addr->sa_family == AF_INET) {
             sa = (struct sockaddr_in *) ifa->ifa_netmask;
+            su = (struct sockaddr_in *) ifa->ifa_addr;
             inet_ntop(AF_INET, &(sa->sin_addr), subnet_mask, INET_ADDRSTRLEN);
+            inet_ntop(AF_INET, &(su->sin_addr), ip, INET_ADDRSTRLEN);
             break;
         }
     }
 
-    printf("Subnet mask of %s: %s --- %u\n", interface_name, subnet_mask, sa->sin_addr.s_addr);
-    int s = inet_pton(AF_INET,subnet_mask, subnet);
-    if (s <= 0) {
-        if (s == 0)
-            fprintf(stderr, "Not in presentation format");
-        else
-            perror("inet_pton");
-        exit(EXIT_FAILURE);
-    }
+    broadcastIP.sin_addr.s_addr = su->sin_addr.s_addr | ~(sa->sin_addr.s_addr);
+    inet_ntop(AF_INET, &(broadcastIP.sin_addr), broad, INET_ADDRSTRLEN);
+    printf("SubnetMask:%s localIP:%s broadcastIP: %s\n", subnet_mask, ip, broad);
     freeifaddrs(ifaddr);
-    //return sa;
+}
+
+void getMultiCast() {
+    char ip1[INET_ADDRSTRLEN];
+    char ip2[INET_ADDRSTRLEN];
+    unsigned char buf[sizeof(struct in6_addr)];
+    inet_pton(AF_INET,"224.0.0.0",&minMultiIP.sin_addr);
+    inet_pton(AF_INET,"239.255.255.255",&maxMultiIP.sin_addr);
+    inet_ntop(AF_INET, &(minMultiIP.sin_addr), ip1, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &(maxMultiIP.sin_addr), ip2, INET_ADDRSTRLEN);
+    printf("ip1:%s ip2:%s\n", ip1, ip2);
 }
 
 /* *************************************** */
@@ -189,7 +209,7 @@ int main(int argc, char* argv[]) {
     }
     printf("Capturing from %s\n", device);
     getBroadCast(device);
-    //return 0; 
+    getMultiCast();
 
     /* hardcode: promisc=1, to_ms=500 */
     promisc = 1;
