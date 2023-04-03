@@ -3,6 +3,7 @@
 #include <sched.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <pwd.h>
 
@@ -35,6 +36,8 @@ unsigned long long numPkts = 0, numBytes = 0;
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 
+#define hashipDIM 100
+
 struct sockaddr_in broadcastIP;
 struct sockaddr_in allbroadcastIP;
 struct sockaddr_in minMultiIP;
@@ -42,13 +45,9 @@ struct sockaddr_in maxMultiIP;
 
 ENTRY s, d, *sp, *dp;
 
-typedef struct data
-{
-    int src;
-    int dsc;
-    struct timeval t;
-} DATA;
-
+typedef struct e {
+   in_addr_t ip;
+} entry_ip;
 
 /*************************************************/
 
@@ -89,6 +88,7 @@ char *intoa(unsigned int addr)
 {
     return (__intoa(addr, buf, sizeof(buf)));
 }
+
 /* ******************************** */
 
 void sigproc(int sig)
@@ -100,6 +100,39 @@ void sigproc(int sig)
     else
         called = 1;
     pcap_breakloop(pd);
+}
+
+/* ******************************** */
+
+typedef struct data
+{
+    int src;
+    int dsc;
+    struct timeval t;
+    entry_ip haship[hashipDIM];
+} DATA;
+
+void insert_ip(in_addr_t ip, entry_ip table[]) {
+    int i = ip % hashipDIM;
+    table[i].ip = ip;
+    printf("messo\n");
+}
+
+int is_present(in_addr_t ip, entry_ip table[]) {
+    int i = ip % hashipDIM;
+    return (table[i].ip == ip);
+}
+
+char* get_ip(entry_ip table[]) {
+    char* a = malloc(1000*sizeof(char));
+    for (int i=0; i < hashipDIM; i++) {
+        if (table[i].ip != 0) {
+            printf("trovato %d\n", i);
+            strcat(a,intoa(ntohl(table[i].ip)));
+            strcat(a," ");
+        }          
+    }
+    return a;
 }
 
 /* *************************************** */
@@ -163,6 +196,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             printf("SrcIP: %-15s", intoa(ntohl(ip.ip_src.s_addr)));
             printf(" | DstIP: %-15s", intoa(ntohl(ip.ip_dst.s_addr)));
             printf(" | Proto: %-5s\n", proto2str(ip.ip_p));
+
             //if (ip.ip_p == IPPROTO_TCP)
             //{
             //    memcpy(&tcp, p + sizeof(ehdr) + sizeof(ip), sizeof(struct tcphdr));
@@ -204,6 +238,10 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 ipaddr->src = 0;
                 ipaddr->dsc = 1;
                 ipaddr->t = h->ts;
+                for (int i=0; i<hashipDIM; i++) {
+                    ipaddr->haship[i].ip = 0;
+                }
+                insert_ip(ip.ip_dst.s_addr,ipaddr->haship);
                 d.data = (void *)ipaddr;
                 //printf("TS PRIMA %d\n", ipaddr->t.tv_usec);
                 dp = hsearch(d, ENTER);
@@ -212,12 +250,21 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             else
             {
                 DATA *a = dp->data;
+                if (!is_present(ip.ip_dst.s_addr,a->haship))
+                    insert_ip(ip.ip_dst.s_addr,a->haship);
                 a->dsc = 1;
                 // Possibile BlackHole
                 if (!(a->src))
                 {
                     struct timeval j = h->ts;
                     printf("dal primo pacchetto: %ld microseconds\n", delta_time(&j,&a->t));
+                    if (delta_time(&j,&a->t) > 2000000) 
+                    {
+                        char* ips = get_ip(a->haship);
+                        printf("%s è un possibile black hole e i possibili host malevoli sono: %s\n",intoa(ntohl(ip.ip_dst.s_addr)),ips);
+                        free(ips);
+                        // è un black hole 
+                    }
                 }
                 //printf("già presente dsc\n");
             }
@@ -310,6 +357,13 @@ int main(int argc, char *argv[])
     inet_pton(AF_INET, "239.255.255.255", &maxMultiIP.sin_addr);
     inet_pton(AF_INET, "255.255.255.255", &allbroadcastIP.sin_addr);
 
+    //entry_ip prova[hashipDIM] = {0};
+    //insert_ip(maxMultiIP.sin_addr.s_addr,prova);
+    //insert_ip(minMultiIP.sin_addr.s_addr,prova);
+    //char* ips = get_ip(prova);
+    //printf("prova lista: %s\n",ips);
+    //free(ips);
+    //return 0;
     //  min multicasdt 3758096384
     //  broad cast 11000000101010000111111111111111 4286556352
     //  192.168.127.255 11000000101010000111111111111111
