@@ -1,5 +1,5 @@
 # NetManProject
-NetWork Management Project for educational purposes, it's a small tool for search Black Hole Hosts on the network.
+NetWork Management Project for educational purposes in University, it's a small tool for searching Black Holes on the network and keep track of the hosts that send the packets.
 It runs a live inspection of the packets that the network adapter receive with the pcap library.
 
 ## Requisites
