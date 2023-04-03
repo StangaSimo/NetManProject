@@ -3,12 +3,17 @@ NetWork Management Project for educational purposes, it's a small tool for searc
 It runs a live inspection of the packets that the network adapter receive with the pcap library.
 
 ## Requisites
+Linux:
 ```
 sudo apt-get install libpcap-dev
+```
+Mac with Brew: 
+```
+brew install libpcap-dev
 ```
 
 ## Example
 ```
 make
-sudo ./nmp -i en0
+sudo ./nmp -i NetworkAdapterName
 ```
