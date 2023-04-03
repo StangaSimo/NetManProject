@@ -241,7 +241,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 for (int i=0; i<hashipDIM; i++) {
                     ipaddr->haship[i].ip = 0;
                 }
-                insert_ip(ip.ip_dst.s_addr,ipaddr->haship);
+                insert_ip(ip.ip_src.s_addr,ipaddr->haship);
                 d.data = (void *)ipaddr;
                 //printf("TS PRIMA %d\n", ipaddr->t.tv_usec);
                 dp = hsearch(d, ENTER);
@@ -250,8 +250,8 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             else
             {
                 DATA *a = dp->data;
-                if (!is_present(ip.ip_dst.s_addr,a->haship))
-                    insert_ip(ip.ip_dst.s_addr,a->haship);
+                if (!is_present(ip.ip_src.s_addr,a->haship))
+                    insert_ip(ip.ip_src.s_addr,a->haship);
                 a->dsc = 1;
                 // Possibile BlackHole
                 if (!(a->src))
