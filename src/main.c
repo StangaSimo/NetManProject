@@ -117,7 +117,6 @@ void insert_ip(in_addr_t ip, entry_ip table[])
 {
     int i = ip % hashipDIM;
     table[i].ip = ip;
-    printf("messo\n");
 }
 
 int is_present(in_addr_t ip, entry_ip table[])
@@ -133,7 +132,6 @@ char *get_ip(entry_ip table[])
     {
         if (table[i].ip != 0)
         {
-            printf("trovato %d\n", i);
             strcat(a, intoa(ntohl(table[i].ip)));
             strcat(a, " ");
         }
@@ -240,6 +238,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             dp = hsearch(d, FIND);
             if (dp == NULL)
             {
+                //Prima volta
                 ipaddr = malloc(sizeof(DATA));
                 ipaddr->src = 0;
                 ipaddr->dsc = 1;
@@ -256,10 +255,13 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             }
             else
             {
+                //caso c'è già
                 DATA *a = dp->data;
+                //si mette src nella hash se non c'è già
                 if (!is_present(ip.ip_src.s_addr, a->haship))
                     insert_ip(ip.ip_src.s_addr, a->haship);
                 a->dsc = 1;
+
                 // Possibile BlackHole
                 if (!(a->src))
                 {
@@ -267,10 +269,10 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                     printf("dal primo pacchetto: %ld microseconds\n", delta_time(&j, &a->t));
                     if (delta_time(&j, &a->t) > 2000000)
                     {
+                        // BLACKHOLE
                         char *ips = get_ip(a->haship);
                         printf("%s è un possibile black hole e i possibili host malevoli sono: %s\n", intoa(ntohl(ip.ip_dst.s_addr)), ips);
                         free(ips);
-                        // è un black hole
                     }
                 }
                 // printf("già presente dsc\n");
