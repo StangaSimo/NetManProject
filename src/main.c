@@ -57,10 +57,8 @@ char *__intoa(unsigned int addr, char *buf, u_short bufLen)
     char *cp, *retStr;
     u_int byte;
     int n;
-
     cp = &buf[bufLen];
     *--cp = '\0';
-
     n = 4;
     do
     {
@@ -188,13 +186,13 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 ipaddr->dsc = 0;
                 s.data = (void *)ipaddr;
                 hsearch(s, ENTER);
-                printf("inserito src\n");
+                //printf("inserito src\n");
             }
             else
             {
                 DATA *a = sp->data;
                 a->src = 1;
-                printf("già presente src\n");
+                //printf("già presente src\n");
             }
 
             // IP DST
@@ -207,19 +205,21 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 ipaddr->dsc = 1;
                 ipaddr->t = h->ts;
                 d.data = (void *)ipaddr;
-                printf("TS PRIMA %d\n", ipaddr->t.tv_usec);
+                //printf("TS PRIMA %d\n", ipaddr->t.tv_usec);
                 dp = hsearch(d, ENTER);
-                printf("inserito dsc\n");
+                //printf("inserito dsc\n");
             }
             else
             {
                 DATA *a = dp->data;
                 a->dsc = 1;
+                // Possibile BlackHole
                 if (!(a->src))
                 {
-                    printf("TS DOPO %d\n", a->t.tv_usec);
+                    struct timeval j = h->ts;
+                    printf("dal primo pacchetto: %ld microseconds\n", delta_time(&j,&a->t));
                 }
-                printf("già presente dsc\n");
+                //printf("già presente dsc\n");
             }
         }
         else
