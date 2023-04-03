@@ -9,7 +9,7 @@ sudo apt-get install libpcap-dev
 ```
 Mac with Brew: 
 ```
-brew install libpcap-dev
+brew install libcap
 ```
 
 ## Example
