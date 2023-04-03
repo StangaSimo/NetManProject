@@ -36,6 +36,7 @@ unsigned long long numPkts = 0, numBytes = 0;
 #include <netinet/udp.h>
 
 struct sockaddr_in broadcastIP;
+struct sockaddr_in allbroadcastIP;
 struct sockaddr_in minMultiIP;
 struct sockaddr_in maxMultiIP;
 
@@ -153,8 +154,9 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 
     if (eth_type == 0x0800)
     {
-        // Check Multicast/Broadcast
-        if (ntohl(ip.ip_dst.s_addr) != ntohl(broadcastIP.sin_addr.s_addr) &&
+        // Check Multicast/Broadcast/allBroadcastIP
+        if ((ntohl(ip.ip_dst.s_addr) != ntohl(broadcastIP.sin_addr.s_addr)) &&
+            (ntohl(ip.ip_dst.s_addr) != ntohl(allbroadcastIP.sin_addr.s_addr)) &&
             (ntohl(ip.ip_dst.s_addr) < ntohl(minMultiIP.sin_addr.s_addr) || ntohl(ip.ip_dst.s_addr) > ntohl(maxMultiIP.sin_addr.s_addr)))
         {
             printf("SrcIP: %-15s", intoa(ntohl(ip.ip_src.s_addr)));
@@ -266,12 +268,6 @@ void getBroadCast(char *device)
     freeifaddrs(ifaddr);
 }
 
-void getMultiCast()
-{
-    inet_pton(AF_INET, "224.0.0.0", &minMultiIP.sin_addr);
-    inet_pton(AF_INET, "239.255.255.255", &maxMultiIP.sin_addr);
-}
-
 /* *************************************** */
 
 int main(int argc, char *argv[])
@@ -307,7 +303,9 @@ int main(int argc, char *argv[])
     }
     printf("Capturing from %s\n", device);
     getBroadCast(device);
-    getMultiCast();
+    inet_pton(AF_INET, "224.0.0.0", &minMultiIP.sin_addr);
+    inet_pton(AF_INET, "239.255.255.255", &maxMultiIP.sin_addr);
+    inet_pton(AF_INET, "255.255.255.255", &allbroadcastIP.sin_addr);
 
     //  min multicasdt 3758096384
     //  broad cast 11000000101010000111111111111111 4286556352
