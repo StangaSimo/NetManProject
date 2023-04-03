@@ -45,8 +45,9 @@ struct sockaddr_in maxMultiIP;
 
 ENTRY s, d, *sp, *dp;
 
-typedef struct e {
-   in_addr_t ip;
+typedef struct e
+{
+    in_addr_t ip;
 } entry_ip;
 
 /*************************************************/
@@ -112,25 +113,30 @@ typedef struct data
     entry_ip haship[hashipDIM];
 } DATA;
 
-void insert_ip(in_addr_t ip, entry_ip table[]) {
+void insert_ip(in_addr_t ip, entry_ip table[])
+{
     int i = ip % hashipDIM;
     table[i].ip = ip;
     printf("messo\n");
 }
 
-int is_present(in_addr_t ip, entry_ip table[]) {
+int is_present(in_addr_t ip, entry_ip table[])
+{
     int i = ip % hashipDIM;
     return (table[i].ip == ip);
 }
 
-char* get_ip(entry_ip table[]) {
-    char* a = malloc(1000*sizeof(char));
-    for (int i=0; i < hashipDIM; i++) {
-        if (table[i].ip != 0) {
+char *get_ip(entry_ip table[])
+{
+    char *a = malloc(1000 * sizeof(char));
+    for (int i = 0; i < hashipDIM; i++)
+    {
+        if (table[i].ip != 0)
+        {
             printf("trovato %d\n", i);
-            strcat(a,intoa(ntohl(table[i].ip)));
-            strcat(a," ");
-        }          
+            strcat(a, intoa(ntohl(table[i].ip)));
+            strcat(a, " ");
+        }
     }
     return a;
 }
@@ -177,8 +183,8 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 {
     struct ether_header ehdr;
     struct ip ip;
-    //struct tcphdr tcp;
-    //struct udphdr udp;
+    // struct tcphdr tcp;
+    // struct udphdr udp;
 
     DATA *ipaddr;
 
@@ -197,18 +203,18 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             printf(" | DstIP: %-15s", intoa(ntohl(ip.ip_dst.s_addr)));
             printf(" | Proto: %-5s\n", proto2str(ip.ip_p));
 
-            //if (ip.ip_p == IPPROTO_TCP)
+            // if (ip.ip_p == IPPROTO_TCP)
             //{
-            //    memcpy(&tcp, p + sizeof(ehdr) + sizeof(ip), sizeof(struct tcphdr));
-            //    printf(" | SrcP: %-10u", tcp.th_sport);
-            //    printf(" | DstP: %-10u\n", tcp.th_dport);
-            //}
-            //else if (ip.ip_p == IPPROTO_UDP)
+            //     memcpy(&tcp, p + sizeof(ehdr) + sizeof(ip), sizeof(struct tcphdr));
+            //     printf(" | SrcP: %-10u", tcp.th_sport);
+            //     printf(" | DstP: %-10u\n", tcp.th_dport);
+            // }
+            // else if (ip.ip_p == IPPROTO_UDP)
             //{
-            //    memcpy(&udp, p + sizeof(ehdr) + sizeof(ip), sizeof(struct udphdr));
-            //    printf(" | SrcP: %-10u", udp.uh_sport);
-            //    printf(" | DstP: %-10u\n", udp.uh_dport);
-            //}
+            //     memcpy(&udp, p + sizeof(ehdr) + sizeof(ip), sizeof(struct udphdr));
+            //     printf(" | SrcP: %-10u", udp.uh_sport);
+            //     printf(" | DstP: %-10u\n", udp.uh_dport);
+            // }
 
             // IP SRC
             s.key = intoa(ntohl(ip.ip_src.s_addr));
@@ -220,13 +226,13 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 ipaddr->dsc = 0;
                 s.data = (void *)ipaddr;
                 hsearch(s, ENTER);
-                //printf("inserito src\n");
+                // printf("inserito src\n");
             }
             else
             {
                 DATA *a = sp->data;
                 a->src = 1;
-                //printf("già presente src\n");
+                // printf("già presente src\n");
             }
 
             // IP DST
@@ -238,35 +244,36 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 ipaddr->src = 0;
                 ipaddr->dsc = 1;
                 ipaddr->t = h->ts;
-                for (int i=0; i<hashipDIM; i++) {
+                for (int i = 0; i < hashipDIM; i++)
+                {
                     ipaddr->haship[i].ip = 0;
                 }
-                insert_ip(ip.ip_src.s_addr,ipaddr->haship);
+                insert_ip(ip.ip_src.s_addr, ipaddr->haship);
                 d.data = (void *)ipaddr;
-                //printf("TS PRIMA %d\n", ipaddr->t.tv_usec);
+                // printf("TS PRIMA %d\n", ipaddr->t.tv_usec);
                 dp = hsearch(d, ENTER);
-                //printf("inserito dsc\n");
+                // printf("inserito dsc\n");
             }
             else
             {
                 DATA *a = dp->data;
-                if (!is_present(ip.ip_src.s_addr,a->haship))
-                    insert_ip(ip.ip_src.s_addr,a->haship);
+                if (!is_present(ip.ip_src.s_addr, a->haship))
+                    insert_ip(ip.ip_src.s_addr, a->haship);
                 a->dsc = 1;
                 // Possibile BlackHole
                 if (!(a->src))
                 {
                     struct timeval j = h->ts;
-                    printf("dal primo pacchetto: %ld microseconds\n", delta_time(&j,&a->t));
-                    if (delta_time(&j,&a->t) > 2000000) 
+                    printf("dal primo pacchetto: %ld microseconds\n", delta_time(&j, &a->t));
+                    if (delta_time(&j, &a->t) > 2000000)
                     {
-                        char* ips = get_ip(a->haship);
-                        printf("%s è un possibile black hole e i possibili host malevoli sono: %s\n",intoa(ntohl(ip.ip_dst.s_addr)),ips);
+                        char *ips = get_ip(a->haship);
+                        printf("%s è un possibile black hole e i possibili host malevoli sono: %s\n", intoa(ntohl(ip.ip_dst.s_addr)), ips);
                         free(ips);
-                        // è un black hole 
+                        // è un black hole
                     }
                 }
-                //printf("già presente dsc\n");
+                // printf("già presente dsc\n");
             }
         }
         else
@@ -310,9 +317,9 @@ void getBroadCast(char *device)
     }
 
     broadcastIP.sin_addr.s_addr = su->sin_addr.s_addr | ~(sa->sin_addr.s_addr);
-    //printf("broadcast PRIMA: %u\n", broadcastIP.sin_addr.s_addr);
-    //printf("broadcast con ntohl: %u\n", ntohl(broadcastIP.sin_addr.s_addr));
-    //printf("MIO: %s\n", intoa(ntohl(broadcastIP.sin_addr.s_addr)));
+    // printf("broadcast PRIMA: %u\n", broadcastIP.sin_addr.s_addr);
+    // printf("broadcast con ntohl: %u\n", ntohl(broadcastIP.sin_addr.s_addr));
+    // printf("MIO: %s\n", intoa(ntohl(broadcastIP.sin_addr.s_addr)));
     inet_ntop(AF_INET, &(broadcastIP.sin_addr), broad, INET_ADDRSTRLEN);
     printf("SubnetMask:%s localIP:%s broadcastIP: %s\n", subnet_mask, ip, broad);
     freeifaddrs(ifaddr);
@@ -357,31 +364,31 @@ int main(int argc, char *argv[])
     inet_pton(AF_INET, "239.255.255.255", &maxMultiIP.sin_addr);
     inet_pton(AF_INET, "255.255.255.255", &allbroadcastIP.sin_addr);
 
-    //entry_ip prova[hashipDIM] = {0};
-    //insert_ip(maxMultiIP.sin_addr.s_addr,prova);
-    //insert_ip(minMultiIP.sin_addr.s_addr,prova);
-    //char* ips = get_ip(prova);
-    //printf("prova lista: %s\n",ips);
-    //free(ips);
-    //return 0;
-    //  min multicasdt 3758096384
-    //  broad cast 11000000101010000111111111111111 4286556352
-    //  192.168.127.255 11000000101010000111111111111111
-    //  255      127      168      192
-    //  11111111 01111111 10101000 11000000  = E' al CONTRARIOOOOOOOOO
-    //  00000000 00000000 00000000 11111111
-    // struct sockaddr_in prova;
-    // inet_pton(AF_INET, "224.0.0.251", &prova.sin_addr);
-    // printf("myIP %u\nminmulti %u\nmaxmulti %u\nbroadcast %u\n", prova.sin_addr.s_addr, ntohl(minMultiIP.sin_addr.s_addr), ntohl(maxMultiIP.sin_addr.s_addr), broadcastIP.sin_addr.s_addr);
-    // if (ntohl(prova.sin_addr.s_addr) < ntohl(minMultiIP.sin_addr.s_addr) || ntohl(prova.sin_addr.s_addr) > ntohl(maxMultiIP.sin_addr.s_addr))
-    //{
-    //    printf("NON MUTLI\n");
-    //}
-    // else
-    //{
-    //    printf("MUTLI\n");
-    //}
+    // entry_ip prova[hashipDIM] = {0};
+    // insert_ip(maxMultiIP.sin_addr.s_addr,prova);
+    // insert_ip(minMultiIP.sin_addr.s_addr,prova);
+    // char* ips = get_ip(prova);
+    // printf("prova lista: %s\n",ips);
+    // free(ips);
     // return 0;
+    //   min multicasdt 3758096384
+    //   broad cast 11000000101010000111111111111111 4286556352
+    //   192.168.127.255 11000000101010000111111111111111
+    //   255      127      168      192
+    //   11111111 01111111 10101000 11000000  = E' al CONTRARIOOOOOOOOO
+    //   00000000 00000000 00000000 11111111
+    //  struct sockaddr_in prova;
+    //  inet_pton(AF_INET, "224.0.0.251", &prova.sin_addr);
+    //  printf("myIP %u\nminmulti %u\nmaxmulti %u\nbroadcast %u\n", prova.sin_addr.s_addr, ntohl(minMultiIP.sin_addr.s_addr), ntohl(maxMultiIP.sin_addr.s_addr), broadcastIP.sin_addr.s_addr);
+    //  if (ntohl(prova.sin_addr.s_addr) < ntohl(minMultiIP.sin_addr.s_addr) || ntohl(prova.sin_addr.s_addr) > ntohl(maxMultiIP.sin_addr.s_addr))
+    //{
+    //     printf("NON MUTLI\n");
+    // }
+    //  else
+    //{
+    //     printf("MUTLI\n");
+    // }
+    //  return 0;
 
     /* hardcode: promisc=1, to_ms=500 */
     promisc = 1;
