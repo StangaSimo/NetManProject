@@ -177,8 +177,8 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 {
     struct ether_header ehdr;
     struct ip ip;
-    struct tcphdr tcp;
-    struct udphdr udp;
+    //struct tcphdr tcp;
+    //struct udphdr udp;
 
     DATA *ipaddr;
 
