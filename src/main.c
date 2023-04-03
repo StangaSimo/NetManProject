@@ -40,6 +40,16 @@ struct sockaddr_in allbroadcastIP;
 struct sockaddr_in minMultiIP;
 struct sockaddr_in maxMultiIP;
 
+ENTRY s, d, *sp, *dp;
+
+typedef struct data
+{
+    int src;
+    int dsc;
+    struct timeval t;
+} DATA;
+
+
 /*************************************************/
 
 char *__intoa(unsigned int addr, char *buf, u_short bufLen)
@@ -116,15 +126,6 @@ char *proto2str(u_short proto)
 
 /* *************************************** */
 
-ENTRY s, d, *sp, *dp;
-
-typedef struct data
-{
-    int src;
-    int dsc;
-    struct timeval t;
-} DATA;
-
 long delta_time(struct timeval *now, struct timeval *before)
 {
     time_t delta_seconds;
@@ -138,6 +139,8 @@ long delta_time(struct timeval *now, struct timeval *before)
     }
     return ((delta_seconds * 1000000) + delta_microseconds);
 }
+
+/* *************************************** */
 
 void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u_char *p)
 {
