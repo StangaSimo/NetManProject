@@ -1,6 +1,3 @@
-
-
-
 #include <pcap/pcap.h> 
 #include <signal.h>
 #include <sched.h>
@@ -34,6 +31,7 @@ struct pcap_stat pcapStats;
 unsigned long long numPkts = 0, numBytes = 0;
 
 #include <ifaddrs.h>
+#include <search.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 
@@ -104,39 +102,92 @@ char* proto2str(u_short proto) {
 
 /* *************************************** */
 
-struct timeval t;
+ENTRY s, d, *sp, *dp;
+
+typedef struct data{
+    int src;
+    int dsc;
+    struct timeval t;
+}DATA;
+
+long delta_time (struct timeval * now, struct timeval * before) {
+  time_t delta_seconds;
+  time_t delta_microseconds;
+  delta_seconds      = now -> tv_sec  - before -> tv_sec;
+  delta_microseconds = now -> tv_usec - before -> tv_usec;
+  if(delta_microseconds < 0) {
+    delta_microseconds += 1000000;  /* 1e6 */
+    -- delta_seconds;
+  }
+  return((delta_seconds * 1000000) + delta_microseconds);
+}
 
 void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u_char *p) {
-    struct ether_header ehdr;
-    //u_short eth_type, vlan_id;
-    struct ip ip;
-    struct tcphdr tcp;
-    struct udphdr udp;
-    //struct in_addr inaddr;
-    printf("prima t :%u\n", t.tv_sec);
-    t = h->ts;
-    //memcpy(&t,&h->ts,sizeof(struct timeval));
-    printf("dopo t :%u\n", t.tv_sec);
-    memcpy(&ehdr, p, sizeof(struct ether_header));
-    memcpy(&ip, p+sizeof(ehdr), sizeof(struct ip));
-    u_short eth_type = ntohs(ehdr.ether_type);
-    if(eth_type == 0x0800) {
-        printf("SrcIP: %-15s" ,intoa(ntohl(ip.ip_src.s_addr)));
-        printf(" | DstIP: %-15s",intoa(ntohl(ip.ip_dst.s_addr)));
-        printf(" | P: %-5s", proto2str(ip.ip_p));
-        if (ip.ip_p == IPPROTO_TCP) {
-            memcpy(&tcp, p+sizeof(ehdr)+sizeof(ip), sizeof(struct tcphdr));
-            printf(" | SrcP: %-10u", tcp.th_sport);
-            printf(" | DstP: %-10u", tcp.th_dport);
-        } else if (ip.ip_p == IPPROTO_UDP) {
-            memcpy(&udp, p+sizeof(ehdr)+sizeof(ip), sizeof(struct udphdr));
-            printf(" | SrcP: %-10u", udp.uh_sport);
-            printf(" | DstP: %-10u", udp.uh_dport);
-        }
-    } else{
-        printf("dk");
+  struct ether_header ehdr;
+  struct ip ip;
+  struct tcphdr tcp;
+  struct udphdr udp;
+
+  DATA *ipaddr;
+
+  memcpy(&ehdr, p, sizeof(struct ether_header));
+  memcpy(&ip, p + sizeof(ehdr), sizeof(struct ip));
+  u_short eth_type = ntohs(ehdr.ether_type);
+
+  if (eth_type == 0x0800) {
+    printf("SrcIP: %-15s", intoa(ntohl(ip.ip_src.s_addr)));
+    printf(" | DstIP: %-15s", intoa(ntohl(ip.ip_dst.s_addr)));
+    printf(" | P: %-5s", proto2str(ip.ip_p));
+    if (ip.ip_p == IPPROTO_TCP) {
+        memcpy(&tcp, p + sizeof(ehdr) + sizeof(ip), sizeof(struct tcphdr));
+        printf(" | SrcP: %-10u", tcp.th_sport);
+        printf(" | DstP: %-10u", tcp.th_dport);
+    } else if (ip.ip_p == IPPROTO_UDP) {
+        memcpy(&udp, p + sizeof(ehdr) + sizeof(ip), sizeof(struct udphdr));
+        printf(" | SrcP: %-10u", udp.uh_sport);
+        printf(" | DstP: %-10u", udp.uh_dport);
     }
-    printf("\n");
+
+    s.key = intoa(ntohl(ip.ip_src.s_addr));
+    sp = hsearch(s, FIND);
+    if (sp == NULL) {
+        ipaddr = malloc(sizeof(DATA));
+        ipaddr->src = 1;
+        ipaddr->dsc = 0;
+        s.data = (void *)ipaddr;
+        hsearch(s, ENTER);
+        printf("inserito src\n");
+    } else {
+        DATA *a = sp->data;
+        a->src = 1;
+        printf("già presente src\n");
+    }
+
+    d.key = intoa(ntohl(ip.ip_dst.s_addr));
+    dp = hsearch(s, FIND);
+    if (dp == NULL) {
+        ipaddr = malloc(sizeof(DATA));
+        ipaddr->src = 0;
+        ipaddr->dsc = 1;
+        ipaddr->t = h->ts;
+        // ipaddr->t = &startTime;
+        d.data = (void *)ipaddr;
+        printf("ts prima %lu\n", ipaddr->t.tv_usec);
+        dp = hsearch(s, ENTER);
+        printf("inserito dsc\n");
+    } else {
+        DATA *a = dp->data;
+
+        a->dsc = 1;
+        if (!(a->src)) {
+            printf("ts dopo %lu\n", a->t.tv_usec);
+        }
+        printf("già presente dsc\n");
+    }
+  } else {
+    printf("dk");
+  }
+  printf("\n");
 }
 
 /* *************************************** */
@@ -144,12 +195,11 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 //struct sockaddr_in* getSubnetMask(char* device) {
 void getBroadCast(char* device) {
     struct ifaddrs *ifaddr, *ifa;
-    char *interface_name = "eth0"; // inserire il nome della scheda di rete
-    struct sockaddr_in *sa,*su;
+    struct sockaddr_in *sa = NULL;
+    struct sockaddr_in *su = NULL;
     char subnet_mask[INET_ADDRSTRLEN];
     char ip[INET_ADDRSTRLEN];
     char broad[INET_ADDRSTRLEN];
-    unsigned char subnet[sizeof(struct in6_addr)];
 
     if (getifaddrs(&ifaddr) == -1) {perror("getifaddrs");exit(EXIT_FAILURE);}
     for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
@@ -169,25 +219,18 @@ void getBroadCast(char* device) {
 }
 
 void getMultiCast() {
-    char ip1[INET_ADDRSTRLEN];
-    char ip2[INET_ADDRSTRLEN];
-    unsigned char buf[sizeof(struct in6_addr)];
     inet_pton(AF_INET,"224.0.0.0",&minMultiIP.sin_addr);
     inet_pton(AF_INET,"239.255.255.255",&maxMultiIP.sin_addr);
-    inet_ntop(AF_INET, &(minMultiIP.sin_addr), ip1, INET_ADDRSTRLEN);
-    inet_ntop(AF_INET, &(maxMultiIP.sin_addr), ip2, INET_ADDRSTRLEN);
-    printf("ip1:%s ip2:%s\n", ip1, ip2);
 }
 
 /* *************************************** */
 
 int main(int argc, char* argv[]) {
     char *device = NULL; 
-    //char *bpfFilter = NULL;
     u_char c;
+    size_t n = 10000;
     char errbuf[PCAP_ERRBUF_SIZE];
     int promisc, snaplen = DEFAULT_SNAPLEN;
-    struct sockaddr_in* subnet_mask;
 
     while((c = getopt(argc, argv, "hi:l:v:f:")) != '?') {
         if((c == 255) || (c == (u_char)-1)) break;
@@ -221,7 +264,9 @@ int main(int argc, char* argv[]) {
     signal(SIGINT, sigproc);
     signal(SIGTERM, sigproc);
 
+    hcreate(n);
     pcap_loop(pd, -1, dummyProcesssPacket, NULL);
+    hdestroy();
 
     pcap_close(pd);
     return(0);
