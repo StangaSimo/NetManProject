@@ -42,6 +42,7 @@ struct sockaddr_in broadcastIP;
 struct sockaddr_in allbroadcastIP;
 struct sockaddr_in minMultiIP;
 struct sockaddr_in maxMultiIP;
+struct sockaddr_in intraIP;
 
 ENTRY s, d, *sp, *dp;
 
@@ -194,6 +195,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
     {
         // Check Multicast/Broadcast/allBroadcastIP
         if ((ntohl(ip.ip_dst.s_addr) != ntohl(broadcastIP.sin_addr.s_addr)) &&
+            (ntohl(ip.ip_dst.s_addr) != ntohl(intraIP.sin_addr.s_addr)) &&
             (ntohl(ip.ip_dst.s_addr) != ntohl(allbroadcastIP.sin_addr.s_addr)) &&
             (ntohl(ip.ip_dst.s_addr) < ntohl(minMultiIP.sin_addr.s_addr) || ntohl(ip.ip_dst.s_addr) > ntohl(maxMultiIP.sin_addr.s_addr)))
         {
@@ -365,6 +367,7 @@ int main(int argc, char *argv[])
     inet_pton(AF_INET, "224.0.0.0", &minMultiIP.sin_addr);
     inet_pton(AF_INET, "239.255.255.255", &maxMultiIP.sin_addr);
     inet_pton(AF_INET, "255.255.255.255", &allbroadcastIP.sin_addr);
+    inet_pton(AF_INET, "192.168.222.11", &intraIP.sin_addr);
 
     // entry_ip prova[hashipDIM] = {0};
     // insert_ip(maxMultiIP.sin_addr.s_addr,prova);
