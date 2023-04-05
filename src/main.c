@@ -29,12 +29,13 @@ struct pcap_stat pcapStats;
 #include <net/ethernet.h> /* the L2 protocols */
 
 // static struct timeval startTime;
-//unsigned long long numPkts = 0, numBytes = 0;
+// unsigned long long numPkts = 0, numBytes = 0;
 
 #include <ifaddrs.h>
 #include <search.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
+#include "roaring.h"
 
 struct sockaddr_in broadcastIP;
 struct sockaddr_in allbroadcastIP;
@@ -149,13 +150,11 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 
     if (eth_type == 0x0800)
     {
-            
-            //solo tcp
             if (ip.ip_p == IPPROTO_TCP)
             {
                 printf("SrcIP: %-15s", intoa(ntohl(ip.ip_src.s_addr)));
                 printf(" | DstIP: %-15s", intoa(ntohl(ip.ip_dst.s_addr)));
-                printf(" | Proto: %-5s\n", proto2str(ip.ip_p));
+                printf(" | Proto: %-5s", proto2str(ip.ip_p));
                 memcpy(&tcp, p + sizeof(ehdr) + sizeof(ip), sizeof(struct tcphdr));
                 printf(" | SrcP: %-10u", tcp.th_sport);
                 printf(" | DstP: %-10u\n", tcp.th_dport);
