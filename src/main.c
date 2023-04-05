@@ -6,8 +6,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <pwd.h>
-
+#define ALARM_SLEEP 1
 #define DEFAULT_SNAPLEN 256
+#define hash_DIM 256
+#define IN_ADDR_SIZE sizeof(in_addr_t)
 
 pcap_t *pd;
 int verbose = 0;
@@ -25,17 +27,16 @@ struct pcap_stat pcapStats;
 #include <netinet/in_systm.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
-// #include <netinet/ip6.h>
-#include <net/ethernet.h> /* the L2 protocols */
+#include <net/ethernet.h>
 
 // static struct timeval startTime;
 // unsigned long long numPkts = 0, numBytes = 0;
 
 #include <ifaddrs.h>
-#include <search.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include "roaring.c"
+#include "map.c"
 
 struct sockaddr_in broadcastIP;
 struct sockaddr_in allbroadcastIP;
@@ -44,6 +45,8 @@ struct sockaddr_in maxMultiIP;
 struct sockaddr_in intraIP;
 struct sockaddr_in myIP;
 
+roaring_bitmap_t *bitmap_BH;
+hashmap *hash_BH;
 /*************************************************/
 
 char *__intoa(unsigned int addr, char *buf, u_short bufLen)
@@ -99,6 +102,38 @@ void sigproc(int sig)
 
 /* ******************************** */
 
+void print_stats()
+{
+    // TODO
+    //  usare uint32_t cardinality = roaring_bitmap_get_cardinality(r1);
+
+    // da usare per comprimere la bitmap
+    // uint32_t expectedsizebasic = roaring_bitmap_portable_size_in_bytes(r1);
+    // roaring_bitmap_run_optimize(r1);
+    // uint32_t expectedsizerun = roaring_bitmap_portable_size_in_bytes(r1);
+    // printf("size before run optimize %d bytes, and after %d bytes\n",expectedsizebasic, expectedsizerun);
+
+    // esempio per iterare sulla hashmap
+    //  define our callback with the correct parameters
+    // void print_entry(void* key, size_t ksize, uintptr_t value, void* usr)
+    //{
+    //	// prints the entry's key and value
+    //	// assumes the key is a null-terminated string
+    //	printf("Entry \"%s\": %i\n", key, value);
+    // }
+    //
+    //// print the key and value of each entry
+    // hashmap_iterate(m, print_entry, NULL);
+}
+
+/* ******************************** */
+
+void my_sigalarm(int sig)
+{
+    print_stats();
+    alarm(ALARM_SLEEP);
+    signal(SIGALRM, my_sigalarm);
+}
 
 /* *************************************** */
 
@@ -138,36 +173,6 @@ long delta_time(struct timeval *now, struct timeval *before)
 
 /* *************************************** */
 
-void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u_char *p)
-{
-    struct ether_header ehdr;
-    struct ip ip;
-    struct tcphdr tcp;
-
-    memcpy(&ehdr, p, sizeof(struct ether_header));
-    memcpy(&ip, p + sizeof(ehdr), sizeof(struct ip));
-    u_short eth_type = ntohs(ehdr.ether_type);
-
-    if (eth_type == 0x0800)
-    {
-            if (ip.ip_p == IPPROTO_TCP)
-            {
-                printf("SrcIP: %-15s", intoa(ntohl(ip.ip_src.s_addr)));
-                printf(" | DstIP: %-15s", intoa(ntohl(ip.ip_dst.s_addr)));
-                printf(" | Proto: %-5s", proto2str(ip.ip_p));
-                memcpy(&tcp, p + sizeof(ehdr) + sizeof(ip), sizeof(struct tcphdr));
-                printf(" | SrcP: %-10u", tcp.th_sport);
-                printf(" | DstP: %-10u\n", tcp.th_dport);
-            }
-    }
-    else
-    {
-        // printf("don't know");
-    }
-}
-
-/* *************************************** */
-
 // struct sockaddr_in* getSubnetMask(char* device) {
 void getBroadCast(char *device)
 {
@@ -196,7 +201,6 @@ void getBroadCast(char *device)
     }
 
     inet_pton(AF_INET, ip, &myIP.sin_addr);
-
     broadcastIP.sin_addr.s_addr = su->sin_addr.s_addr | ~(sa->sin_addr.s_addr);
     inet_ntop(AF_INET, &(broadcastIP.sin_addr), broad, INET_ADDRSTRLEN);
     printf("SubnetMask:%s localIP:%s broadcastIP: %s\n", subnet_mask, ip, broad);
@@ -205,21 +209,73 @@ void getBroadCast(char *device)
 
 /* *************************************** */
 
+void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u_char *p)
+{
+    struct ether_header ehdr;
+    struct ip ip;
+    struct tcphdr tcp;
+
+    memcpy(&ehdr, p, sizeof(struct ether_header));
+    memcpy(&ip, p + sizeof(ehdr), sizeof(struct ip));
+    u_short eth_type = ntohs(ehdr.ether_type);
+
+    if (eth_type == 0x0800)
+    {
+        if (ip.ip_p == IPPROTO_TCP)
+        {
+            // printf("SrcIP: %-15s", intoa(ntohl(ip.ip_src.s_addr)));
+            // printf(" | DstIP: %-15s", intoa(ntohl(ip.ip_dst.s_addr)));
+            // printf(" | Proto: %-5s\n", proto2str(ip.ip_p));
+
+            // SRC check
+            if (roaring_bitmap_contains(bitmap_BH, ip.ip_src.s_addr))
+            {
+                // tolgo src da tutto
+                roaring_bitmap_remove(bitmap_BH, ip.ip_src.s_addr);
+                uintptr_t r;
+                hashmap_get(hash_BH, ip.ip_src.s_addr, IN_ADDR_SIZE, &r);
+                roaring_bitmap_free((roaring_bitmap_t *)r);
+                hashmap_remove(hash_BH, ip.ip_src.s_addr, IN_ADDR_SIZE);
+            }
+
+            // DST check
+            if (roaring_bitmap_contains(bitmap_BH, ip.ip_dst.s_addr))
+            {
+                // mettere controllo e aggiunta del src
+                uintptr_t r;
+                hashmap_get(hash_BH, ip.ip_dst.s_addr, IN_ADDR_SIZE, &r);
+                if (!roaring_bitmap_contains((roaring_bitmap_t *)r, ip.ip_src.s_addr))
+                    roaring_bitmap_add((roaring_bitmap_t *)r, ip.ip_src.s_addr);
+            }
+            else
+            {
+                // aggiungo alla bitmap e alla hash dst associandoli la sua bitmap degli src con il nuovo src
+                roaring_bitmap_add(bitmap_BH, ip.ip_dst.s_addr);
+                roaring_bitmap_t *src = roaring_bitmap_create();
+                roaring_bitmap_add(src, ip.ip_src.s_addr);
+                hashmap_set(hash_BH, ip.ip_dst.s_addr, IN_ADDR_SIZE, src);
+            }
+        }
+    }
+    else
+    {
+        // printf("don't know");
+    }
+}
+
+/* *************************************** */
+
 int main(int argc, char *argv[])
 {
     char *device = NULL;
     u_char c;
-    size_t n = 10000;
     char errbuf[PCAP_ERRBUF_SIZE];
     int promisc, snaplen = DEFAULT_SNAPLEN;
 
-    roaring_bitmap_t *r1 = roaring_bitmap_create();
-    for (uint32_t i = 100; i < 1000; i++) roaring_bitmap_add(r1, i);
-    //assert(roaring_bitmap_contains(r1, 500));
-    int32_t cardinality = roaring_bitmap_get_cardinality(r1);
-    printf("Cardinality = %d \n", cardinality);
-    return 0;
-
+    // bitmap create
+    bitmap_BH = roaring_bitmap_create();
+    // hash create
+    hash_BH = hashmap_create();
 
     while ((c = getopt(argc, argv, "hi:l:v:f:")) != '?')
     {
@@ -261,11 +317,14 @@ int main(int argc, char *argv[])
     }
     signal(SIGINT, sigproc);
     signal(SIGTERM, sigproc);
+    signal(SIGALRM, my_sigalarm);
+    alarm(ALARM_SLEEP);
 
-    hcreate(n);
     pcap_loop(pd, -1, dummyProcesssPacket, NULL);
-    hdestroy();
 
+    // free bitmap
+    roaring_bitmap_free(bitmap_BH);
+    // free hash
     pcap_close(pd);
     return (0);
 }
