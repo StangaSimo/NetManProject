@@ -2,9 +2,7 @@
 .SUFFIXES: .c 
 
 main: src/main.c 
-		$(CC) src/roaring.c -o bin/roaring.o -c 
-		$(CC) -Wall src/main.c -o bin/main.o -c  
-		$(CC) -Wall bin/main.o bin/roaring.o -o nmp -lpcap
+	$(CC) -std=c11 src/main.c -o nmp -lpcap
 
 clean: 
 	-@rm nmp

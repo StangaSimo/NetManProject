@@ -35,7 +35,7 @@ struct pcap_stat pcapStats;
 #include <search.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
-#include "roaring.h"
+#include "roaring.c"
 
 struct sockaddr_in broadcastIP;
 struct sockaddr_in allbroadcastIP;
@@ -212,6 +212,14 @@ int main(int argc, char *argv[])
     size_t n = 10000;
     char errbuf[PCAP_ERRBUF_SIZE];
     int promisc, snaplen = DEFAULT_SNAPLEN;
+
+    roaring_bitmap_t *r1 = roaring_bitmap_create();
+    for (uint32_t i = 100; i < 1000; i++) roaring_bitmap_add(r1, i);
+    //assert(roaring_bitmap_contains(r1, 500));
+    int32_t cardinality = roaring_bitmap_get_cardinality(r1);
+    printf("Cardinality = %d \n", cardinality);
+    return 0;
+
 
     while ((c = getopt(argc, argv, "hi:l:v:f:")) != '?')
     {
