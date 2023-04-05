@@ -6,7 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <pwd.h>
-#define ALARM_SLEEP 1
+#define ALARM_SLEEP 3
 #define DEFAULT_SNAPLEN 256
 #define hash_DIM 256
 
@@ -28,6 +28,9 @@ struct pcap_stat pcapStats;
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <net/ethernet.h>
+
+//https://github.com/RoaringBitmap/CRoaring
+//https://github.com/Mashpoe/c-hashmap#proper-usage-of-keys
 
 // static struct timeval startTime;
 // unsigned long long numPkts = 0, numBytes = 0;
@@ -102,16 +105,21 @@ void sigproc(int sig)
 
 /* ******************************** */
 
+bool print_BH(uint32_t value, void *param) {
+    printf("blackhole: %s\n",intoa(ntohl(value)));
+    return true;  // iterate till the end
+}
+
+/* ******************************** */
+
 void print_stats()
 {
-    // TODO
-    //  usare uint32_t cardinality = roaring_bitmap_get_cardinality(r1);
+    uint32_t c = roaring_bitmap_get_cardinality(bitmap_BH);
+    printf("black Hole totali: %u\n",c);
 
-    // da usare per comprimere la bitmap
-    // uint32_t expectedsizebasic = roaring_bitmap_portable_size_in_bytes(r1);
-    // roaring_bitmap_run_optimize(r1);
-    // uint32_t expectedsizerun = roaring_bitmap_portable_size_in_bytes(r1);
-    // printf("size before run optimize %d bytes, and after %d bytes\n",expectedsizebasic, expectedsizerun);
+    //itero i blackhole
+    uint32_t counter = 0;
+    roaring_iterate(bitmap_BH, print_BH, &counter);
 
     // esempio per iterare sulla hashmap
     //  define our callback with the correct parameters
@@ -124,6 +132,15 @@ void print_stats()
     //
     //// print the key and value of each entry
     // hashmap_iterate(m, print_entry, NULL);
+
+
+
+
+    // da usare per comprimere la bitmap e ottimizzare
+    // uint32_t expectedsizebasic = roaring_bitmap_portable_size_in_bytes(r1);
+    // roaring_bitmap_run_optimize(r1);
+    // uint32_t expectedsizerun = roaring_bitmap_portable_size_in_bytes(r1);
+    // printf("size before run optimize %d bytes, and after %d bytes\n",expectedsizebasic, expectedsizerun);
 }
 
 /* ******************************** */
@@ -241,7 +258,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             // DST check
             if (roaring_bitmap_contains(bitmap_BH, ip.ip_dst.s_addr))
             {
-                // mettere controllo e aggiunta del src
+                // controllo e aggiunta del src alla hash
                 uintptr_t r;
                 hashmap_get(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_src.s_addr), &r);
                 if (!roaring_bitmap_contains((roaring_bitmap_t *)r, ip.ip_src.s_addr))
@@ -300,7 +317,9 @@ int main(int argc, char *argv[])
         printf("ERROR: Missing -i\n");
         return (-1);
     }
+
     printf("Capturing from %s\n", device);
+
     getBroadCast(device);
     inet_pton(AF_INET, "224.0.0.0", &minMultiIP.sin_addr);
     inet_pton(AF_INET, "239.255.255.255", &maxMultiIP.sin_addr);
@@ -315,6 +334,7 @@ int main(int argc, char *argv[])
         printf("pcap_open_live: %s\n", errbuf);
         return (-1);
     }
+
     signal(SIGINT, sigproc);
     signal(SIGTERM, sigproc);
     signal(SIGALRM, my_sigalarm);
