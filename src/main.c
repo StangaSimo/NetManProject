@@ -9,7 +9,7 @@
 #define ALARM_SLEEP 1
 #define DEFAULT_SNAPLEN 256
 #define hash_DIM 256
-#define IN_ADDR_SIZE sizeof(in_addr_t)
+
 
 pcap_t *pd;
 int verbose = 0;
@@ -233,9 +233,9 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 // tolgo src da tutto
                 roaring_bitmap_remove(bitmap_BH, ip.ip_src.s_addr);
                 uintptr_t r;
-                hashmap_get(hash_BH, ip.ip_src.s_addr, IN_ADDR_SIZE, &r);
+                hashmap_get(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), &r);
                 roaring_bitmap_free((roaring_bitmap_t *)r);
-                hashmap_remove(hash_BH, ip.ip_src.s_addr, IN_ADDR_SIZE);
+                hashmap_remove(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr));
             }
 
             // DST check
@@ -243,7 +243,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             {
                 // mettere controllo e aggiunta del src
                 uintptr_t r;
-                hashmap_get(hash_BH, ip.ip_dst.s_addr, IN_ADDR_SIZE, &r);
+                hashmap_get(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_src.s_addr), &r);
                 if (!roaring_bitmap_contains((roaring_bitmap_t *)r, ip.ip_src.s_addr))
                     roaring_bitmap_add((roaring_bitmap_t *)r, ip.ip_src.s_addr);
             }
@@ -253,7 +253,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 roaring_bitmap_add(bitmap_BH, ip.ip_dst.s_addr);
                 roaring_bitmap_t *src = roaring_bitmap_create();
                 roaring_bitmap_add(src, ip.ip_src.s_addr);
-                hashmap_set(hash_BH, ip.ip_dst.s_addr, IN_ADDR_SIZE, src);
+                hashmap_set(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_src.s_addr),(uintptr_t)(void*)src);
             }
         }
     }
