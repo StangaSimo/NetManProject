@@ -1,3 +1,4 @@
 nmp
 src/pcount.c
 .vscode
+.DS_Store
