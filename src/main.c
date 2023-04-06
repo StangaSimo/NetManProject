@@ -121,7 +121,7 @@ void print_stats()
     uint32_t counter = 0;
     roaring_iterate(bitmap_BH, print_BH, &counter);
 
-    // esempio per iterare sulla hashmap
+    // TODO: esempio per iterare sulla hashmap
     //  define our callback with the correct parameters
     // void print_entry(void* key, size_t ksize, uintptr_t value, void* usr)
     //{
@@ -134,9 +134,7 @@ void print_stats()
     // hashmap_iterate(m, print_entry, NULL);
 
 
-
-
-    // da usare per comprimere la bitmap e ottimizzare
+    // TODO: da usare per comprimere la bitmap e ottimizzare
     // uint32_t expectedsizebasic = roaring_bitmap_portable_size_in_bytes(r1);
     // roaring_bitmap_run_optimize(r1);
     // uint32_t expectedsizerun = roaring_bitmap_portable_size_in_bytes(r1);
@@ -244,10 +242,13 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             // printf(" | DstIP: %-15s", intoa(ntohl(ip.ip_dst.s_addr)));
             // printf(" | Proto: %-5s\n", proto2str(ip.ip_p));
 
+            //TODO: aggiungere la bitmap degli src e integrare i controlli 
+
             // SRC check
             if (roaring_bitmap_contains(bitmap_BH, ip.ip_src.s_addr))
             {
                 // tolgo src da tutto
+                printf("tolto\n");
                 roaring_bitmap_remove(bitmap_BH, ip.ip_src.s_addr);
                 uintptr_t r;
                 hashmap_get(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), &r);
