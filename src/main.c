@@ -120,53 +120,41 @@ void sigproc(int sig)
 
 /* ******************************** */
 
-// bool print_BH(uint32_t value, void *param) {
-//     printf("blackhole: %s\n",intoa(ntohl(value)));
-//     return true;  // iterate till the end
-// }
-
-void print_bh_src(void *key, roaring_bitmap_t *bitmap)
+bool print_bh_src(uint32_t value, void *parap)
 {
-    // printf("Blackhole %s\n", intoa(ntohl(key)));
-    // printf("sorgenti: ");
-    //// uint32_t counter = 0;
-    // uint32_t value;
-    // roaring_uint32_iterator_t *i = roaring_create_iterator(bitmap);
-    // while (i->has_value)
-    //{
-    //     roaring_move_uint32_iterator_equalorlarger(i, value);
-    //     printf(" %s,", intoa(ntohl(value)));
-    // }
-    // printf("\n");
-    // roaring_free_uint32_iterator(i);
+    printf("ip: %s\n",intoa(ntohl(value)));
+    return true; 
 }
+
 
 void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 {
+    printw("dentro: %s\n", intoa(ntohl(*(__uint32_t*)key)));
     DATA *data = (DATA *)d;
     // possibile bh o certo bh
 
     //l'unico caso da evitare è solo src
-    if (!(data->src && !data->dst))
-    {
-        long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
-        if (delta > 60)
-        {
-            // certo bh se sono passati piu di 60 secondi
-            printf("è un bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)), delta);
-            //blackhole((void *)key, data->bitmap);
-        }
-        else
-        {
-            // secondi e diciamo che è un possibile blackhole??
-            if (delta > 5)
-            {
-                printf("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)),delta);
-            }
-            // per dire che è tornato a funzionare??
-        }
-        //TODO: manca è uscito dal blackhole
-    }
+    //if (!(data->src && !data->dst))
+    //{
+    //    long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
+    //    if (delta > 60)
+    //    {
+    //        // certo bh se sono passati piu di 60 secondi
+    //        printw("è un bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)), delta);
+    //        uint32_t counter = 0;
+    //        roaring_iterate(data->bitmap,print_bh_src, &counter);
+    //    }
+    //    else
+    //    {
+    //        // secondi e diciamo che è un possibile blackhole??
+    //        if (delta > 5)
+    //        {
+    //            printw("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)),delta);
+    //        }
+    //        // per dire che è tornato a funzionare??
+    //    }
+    //    //TODO: manca è uscito dal blackhole
+    //}
 }
 
 /* ******************************** */
@@ -180,15 +168,17 @@ void optimize(roaring_bitmap_t *bitmpap)
 }
 
 /* ******************************** */
-int c = 1;
+
+int c=0; 
 
 void print_stats()
 {
-    clear();
-    printw("statistiche %d \n",c++);
-    refresh();
+    
     //hashmap_iterate(hash_BH, (hashmap_callback)print_hash_entry, NULL);
-
+    clear();
+    hashmap_iterate(hash_BH, print_hash_entry, NULL);
+    printw("itero %d volte\n",c++);
+    refresh();
     // uint32_t c = roaring_bitmap_get_cardinality(bitmap_BH);
     // printf("black Hole totali: %u\n",c);
     // itero i blackhole
@@ -205,7 +195,7 @@ void print_stats()
     // }
     //
     //// print the key and value of each entry
-    // hashmap_iterate(m, print_entry, NULL);
+    
     // optimize(bitmap_BH);
 }
 
@@ -294,6 +284,7 @@ void getBroadCast(char *device)
 
 /* *************************************** */
 
+
 void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u_char *p)
 {
     struct ether_header ehdr;
@@ -303,6 +294,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
     memcpy(&ehdr, p, sizeof(struct ether_header));
     memcpy(&ip, p + sizeof(ehdr), sizeof(struct ip));
     u_short eth_type = ntohs(ehdr.ether_type);
+
 
     if (eth_type == 0x0800)
     {
@@ -338,7 +330,10 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 src_data->dst = 0;
                 src_data->time_src = h->ts;
                 src_data->bitmap = roaring_bitmap_create();
-                hashmap_set(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), (uintptr_t)(void *)src_data);
+                printf("inserisco src %s\n",intoa(ntohl(ip.ip_src.s_addr)));
+                in_addr_t* s_addr = malloc(sizeof(in_addr_t));
+                memcpy(s_addr, &ip.ip_src.s_addr, sizeof(in_addr_t));
+                hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)src_data);
             }
 
             if (hashmap_get(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_dst.s_addr), &r))
@@ -371,7 +366,10 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 dst_data->time_dst = h->ts;
                 dst_data->bitmap = roaring_bitmap_create();
                 roaring_bitmap_add(dst_data->bitmap, ip.ip_src.s_addr);
-                hashmap_set(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_src.s_addr), (uintptr_t)(void *)dst_data);
+                printf("inserisco dest %s\n",intoa(ntohl(ip.ip_dst.s_addr)));
+                in_addr_t* s_addr = malloc(sizeof(in_addr_t));
+                memcpy(s_addr, &ip.ip_dst.s_addr, sizeof(in_addr_t));
+                hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)dst_data);
             }
         }
     }
