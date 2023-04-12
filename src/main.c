@@ -137,7 +137,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
     if (!(data->src && !data->dst))
     {
         long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
-        printw("delta dst %ld, delta src %ld\n", data->time_dst.tv_sec, data->time_src.tv_sec  );
+        printw("delta dst %ld, delta src %ld, delta %ld\n", data->time_dst.tv_sec, data->time_src.tv_sec, delta);
         if (delta > 60)
         {
             // certo bh se sono passati piu di 60 secondi
