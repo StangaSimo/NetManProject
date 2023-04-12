@@ -40,6 +40,7 @@ struct pcap_stat pcapStats;
 #include <netinet/udp.h>
 #include "roaring.c"
 #include "map.c"
+#include <ncurses.h>
 
 struct sockaddr_in broadcastIP;
 struct sockaddr_in allbroadcastIP;
@@ -139,6 +140,7 @@ void print_stats()
     // roaring_bitmap_run_optimize(r1);
     // uint32_t expectedsizerun = roaring_bitmap_portable_size_in_bytes(r1);
     // printf("size before run optimize %d bytes, and after %d bytes\n",expectedsizebasic, expectedsizerun);
+    refresh();
 }
 
 /* ******************************** */
@@ -248,7 +250,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             if (roaring_bitmap_contains(bitmap_BH, ip.ip_src.s_addr))
             {
                 // tolgo src da tutto
-                printf("tolto\n");
+                //printf("tolto\n");
                 roaring_bitmap_remove(bitmap_BH, ip.ip_src.s_addr);
                 uintptr_t r;
                 hashmap_get(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), &r);
@@ -285,6 +287,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 
 int main(int argc, char *argv[])
 {
+    initscr();
     char *device = NULL;
     u_char c;
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -347,5 +350,6 @@ int main(int argc, char *argv[])
     roaring_bitmap_free(bitmap_BH);
     // free hash
     pcap_close(pd);
+    endwin();
     return (0);
 }
