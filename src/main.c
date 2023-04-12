@@ -43,7 +43,7 @@ struct pcap_stat pcapStats;
 #include <netinet/udp.h>
 #include "roaring.c"
 #include "map.c"
-// #include <ncurses.h>
+#include <ncurses.h>
 
 struct sockaddr_in broadcastIP;
 struct sockaddr_in allbroadcastIP;
@@ -180,11 +180,14 @@ void optimize(roaring_bitmap_t *bitmpap)
 }
 
 /* ******************************** */
+int c = 1;
 
 void print_stats()
 {
-    //printf("statistiche\n");
-    hashmap_iterate(hash_BH, (hashmap_callback)print_hash_entry, NULL);
+    clear();
+    printw("statistiche %d \n",c++);
+    refresh();
+    //hashmap_iterate(hash_BH, (hashmap_callback)print_hash_entry, NULL);
 
     // uint32_t c = roaring_bitmap_get_cardinality(bitmap_BH);
     // printf("black Hole totali: %u\n",c);
@@ -382,7 +385,7 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 
 int main(int argc, char *argv[])
 {
-    // initscr();
+    initscr();
     char *device = NULL;
     u_char c;
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -447,6 +450,6 @@ int main(int argc, char *argv[])
     // free hash
     hashmap_free(hash_BH);
     pcap_close(pd);
-    // endwin();
+    endwin();
     return (0);
 }
