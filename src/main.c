@@ -133,28 +133,29 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
     DATA *data = (DATA *)d;
     // possibile bh o certo bh
 
-    //l'unico caso da evitare è solo src
-    //if (!(data->src && !data->dst))
-    //{
-    //    long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
-    //    if (delta > 60)
-    //    {
-    //        // certo bh se sono passati piu di 60 secondi
-    //        printw("è un bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)), delta);
-    //        uint32_t counter = 0;
-    //        roaring_iterate(data->bitmap,print_bh_src, &counter);
-    //    }
-    //    else
-    //    {
-    //        // secondi e diciamo che è un possibile blackhole??
-    //        if (delta > 5)
-    //        {
-    //            printw("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)),delta);
-    //        }
-    //        // per dire che è tornato a funzionare??
-    //    }
-    //    //TODO: manca è uscito dal blackhole
-    //}
+    //l'unico caso da evitare è solo src = 1 e dst = 0
+    if (!(data->src && !data->dst))
+    {
+        long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
+        printw("delta dst %ld, delta src %ld\n", data->time_dst.tv_sec, data->time_src.tv_sec  );
+        if (delta > 60)
+        {
+            // certo bh se sono passati piu di 60 secondi
+            printw("è un bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)), delta);
+            uint32_t counter = 0;
+            roaring_iterate(data->bitmap,print_bh_src, &counter);
+        }
+        else
+        {
+            // secondi e diciamo che è un possibile blackhole??
+            if (delta > 5)
+            {
+                printw("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)),delta);
+            }
+            // per dire che è tornato a funzionare??
+        }
+        //TODO: manca è uscito dal blackhole
+    }
 }
 
 /* ******************************** */
@@ -446,6 +447,7 @@ int main(int argc, char *argv[])
     // roaring_bitmap_free(bitmap_BH);
     roaring_bitmap_free(bitmap_src);
     // free hash
+    // TODO: free the key
     hashmap_free(hash_BH);
     pcap_close(pd);
     endwin();
