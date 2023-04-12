@@ -10,6 +10,8 @@
 #define DEFAULT_SNAPLEN 256
 #define hash_DIM 256
 
+#include <stdlib.h>
+#include <stddef.h>
 
 pcap_t *pd;
 int verbose = 0;
@@ -28,6 +30,7 @@ struct pcap_stat pcapStats;
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <net/ethernet.h>
+#include <arpa/inet.h>
 
 //https://github.com/RoaringBitmap/CRoaring
 //https://github.com/Mashpoe/c-hashmap#proper-usage-of-keys
@@ -49,8 +52,17 @@ struct sockaddr_in maxMultiIP;
 struct sockaddr_in intraIP;
 struct sockaddr_in myIP;
 
-roaring_bitmap_t *bitmap_BH;
+//roaring_bitmap_t *bitmap_BH;
+roaring_bitmap_t *bitmap_src;
 hashmap *hash_BH;
+
+typedef struct{
+   int src;
+   int dst;   
+   struct timeval time_src;
+   struct timeval time_dst;
+   roaring_bitmap_t *bitmap;
+}DATA;
 /*************************************************/
 
 char *__intoa(unsigned int addr, char *buf, u_short bufLen)
@@ -106,21 +118,62 @@ void sigproc(int sig)
 
 /* ******************************** */
 
-bool print_BH(uint32_t value, void *param) {
-    printf("blackhole: %s\n",intoa(ntohl(value)));
-    return true;  // iterate till the end
+//bool print_BH(uint32_t value, void *param) {
+//    printf("blackhole: %s\n",intoa(ntohl(value)));
+//    return true;  // iterate till the end
+//}
+
+void blackhole(void* key,roaring_bitmap_t *bitmap){
+     printf("Blackhole %s\n", intoa(ntohl(key)));
+     printf("sorgenti: ");
+      //uint32_t counter = 0;
+     uint32_t value;
+     roaring_uint32_iterator_t *i = roaring_create_iterator(bitmap);
+     while (i->has_value) {
+         roaring_move_uint32_iterator_equalorlarger(i,value);
+         printf(" %s,", intoa(ntohl(value)));
+         }
+        printf("\n");
+        roaring_free_uint32_iterator(i);
+}
+
+
+void print_entry(void* key, size_t ksize, DATA *data, void* usr){
+    // prints the entry's key and value
+
+    if(data->src && data->dst){
+       if((data->time_dst.tv_sec-data->time_src.tv_sec)>60){
+           blackhole((void*)key,data->bitmap);
+       }
+    }
+    if(data->dst && !(data->src)){
+        if((data->time_src.tv_sec) > 30){
+            blackhole((void*)key,data->bitmap);
+        }
+    }
+
+    }
+
+/* ******************************** */
+
+void optimize(roaring_bitmap_t *bitmpap) 
+{
+    uint32_t expectedsizebasic = roaring_bitmap_portable_size_in_bytes(bitmpap);
+    roaring_bitmap_run_optimize(bitmpap);
+    uint32_t expectedsizerun = roaring_bitmap_portable_size_in_bytes(bitmpap);
+    printf("size before run optimize %d bytes, and after %d bytes\n",expectedsizebasic, expectedsizerun); 
 }
 
 /* ******************************** */
 
 void print_stats()
 {
-    uint32_t c = roaring_bitmap_get_cardinality(bitmap_BH);
-    printf("black Hole totali: %u\n",c);
-
+   // uint32_t c = roaring_bitmap_get_cardinality(bitmap_BH);
+  //  printf("black Hole totali: %u\n",c);
+    hashmap_iterate(hash_BH, print_entry, NULL);
     //itero i blackhole
-    uint32_t counter = 0;
-    roaring_iterate(bitmap_BH, print_BH, &counter);
+    //uint32_t counter = 0;
+    //roaring_iterate(bitmap_BH, print_BH, &counter);
 
     // TODO: esempio per iterare sulla hashmap
     //  define our callback with the correct parameters
@@ -134,13 +187,7 @@ void print_stats()
     //// print the key and value of each entry
     // hashmap_iterate(m, print_entry, NULL);
 
-
-    // TODO: da usare per comprimere la bitmap e ottimizzare
-    // uint32_t expectedsizebasic = roaring_bitmap_portable_size_in_bytes(r1);
-    // roaring_bitmap_run_optimize(r1);
-    // uint32_t expectedsizerun = roaring_bitmap_portable_size_in_bytes(r1);
-    // printf("size before run optimize %d bytes, and after %d bytes\n",expectedsizebasic, expectedsizerun);
-    refresh();
+    //optimize(bitmap_BH);
 }
 
 /* ******************************** */
@@ -174,19 +221,21 @@ char *proto2str(u_short proto)
 
 /* *************************************** */
 
-long delta_time(struct timeval *now, struct timeval *before)
+/*long delta_time(struct timeval *now, struct timeval *before)
 {
     time_t delta_seconds;
     time_t delta_microseconds;
     delta_seconds = now->tv_sec - before->tv_sec;
+
     delta_microseconds = now->tv_usec - before->tv_usec;
     if (delta_microseconds < 0)
     {
-        delta_microseconds += 1000000; /* 1e6 */
+        delta_microseconds += 1000000; 
         --delta_seconds;
     }
     return ((delta_seconds * 1000000) + delta_microseconds);
 }
+*/
 
 /* *************************************** */
 
@@ -244,37 +293,60 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
             // printf(" | DstIP: %-15s", intoa(ntohl(ip.ip_dst.s_addr)));
             // printf(" | Proto: %-5s\n", proto2str(ip.ip_p));
 
-            //TODO: aggiungere la bitmap degli src e integrare i controlli 
-
+            //bitmap degli src 
             // SRC check
-            if (roaring_bitmap_contains(bitmap_BH, ip.ip_src.s_addr))
+            uintptr_t r;
+            if (hashmap_get(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), &r))
             {
-                // tolgo src da tutto
-                //printf("tolto\n");
-                roaring_bitmap_remove(bitmap_BH, ip.ip_src.s_addr);
-                uintptr_t r;
-                hashmap_get(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), &r);
-                roaring_bitmap_free((roaring_bitmap_t *)r);
-                hashmap_remove(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr));
+                // tolgo src da tutto  
+               DATA *r = (DATA *)r;
+               if(!(r->src))
+                 r->src=1; 
+
+               r->time_src = h->ts;
             }
 
-            // DST check
-            if (roaring_bitmap_contains(bitmap_BH, ip.ip_dst.s_addr))
-            {
-                // controllo e aggiunta del src alla hash
-                uintptr_t r;
-                hashmap_get(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_src.s_addr), &r);
-                if (!roaring_bitmap_contains((roaring_bitmap_t *)r, ip.ip_src.s_addr))
-                    roaring_bitmap_add((roaring_bitmap_t *)r, ip.ip_src.s_addr);
-            }
             else
             {
-                // aggiungo alla bitmap e alla hash dst associandoli la sua bitmap degli src con il nuovo src
-                roaring_bitmap_add(bitmap_BH, ip.ip_dst.s_addr);
-                roaring_bitmap_t *src = roaring_bitmap_create();
-                roaring_bitmap_add(src, ip.ip_src.s_addr);
-                hashmap_set(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_src.s_addr),(uintptr_t)(void*)src);
+                DATA *src_data;
+                src_data = malloc(sizeof(DATA));
+                src_data->src=1;
+                src_data->dst=0;
+                src_data->time_src = h->ts;
+                src_data->bitmap = roaring_bitmap_create();
+                
+                hashmap_set(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr),(uintptr_t)(void*)src_data);               
             }
+
+             if (hashmap_get(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_dst.s_addr), &r))
+             {
+               // t1 *a = (t1 *)arg;
+                DATA *r = (DATA *)r;
+               if(!(r->dst))
+               {
+                  r->dst=1;
+               }
+
+                r->time_dst = h->ts;               
+
+               if (!(roaring_bitmap_contains(r->bitmap, ip.ip_src.s_addr)))
+               {               
+                    roaring_bitmap_add(r->bitmap, ip.ip_src.s_addr);
+               }
+
+             }
+
+             else
+             {
+                DATA *dst_data = malloc(sizeof(DATA));
+                dst_data->dst=1;
+                dst_data->src=0;
+                dst_data->time_src = h->ts;
+                dst_data->bitmap = roaring_bitmap_create();
+                
+                hashmap_set(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_src.s_addr),(uintptr_t)(void*)dst_data);   
+             }
+
         }
     }
     else
@@ -294,9 +366,11 @@ int main(int argc, char *argv[])
     int promisc, snaplen = DEFAULT_SNAPLEN;
 
     // bitmap create
-    bitmap_BH = roaring_bitmap_create();
+   // bitmap_BH = roaring_bitmap_create();
+    bitmap_src = roaring_bitmap_create();
     // hash create
     hash_BH = hashmap_create();
+    
 
     while ((c = getopt(argc, argv, "hi:l:v:f:")) != '?')
     {
@@ -347,8 +421,10 @@ int main(int argc, char *argv[])
     pcap_loop(pd, -1, dummyProcesssPacket, NULL);
 
     // free bitmap
-    roaring_bitmap_free(bitmap_BH);
+   // roaring_bitmap_free(bitmap_BH);
+    roaring_bitmap_free(bitmap_src);
     // free hash
+    hashmap_free(hash_BH);
     pcap_close(pd);
     endwin();
     return (0);
