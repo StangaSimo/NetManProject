@@ -126,6 +126,7 @@ bool print_bh_src(uint32_t value, void *parap)
     return true; 
 }
 
+/* ******************************** */
 
 void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 {

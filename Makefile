@@ -2,7 +2,7 @@
 .SUFFIXES: .c 
 
 main: src/main.c 
-	$(CC) -std=c11 src/main.c -o nmp -lpcap -lncurses
+	$(CC) src/main.c -o nmp -lpcap -lncurses
 
 clean: 
 	-@rm nmp
