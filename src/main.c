@@ -52,7 +52,7 @@ struct sockaddr_in maxMultiIP;
 struct sockaddr_in intraIP;
 struct sockaddr_in myIP;
 
-// roaring_bitmap_t *bitmap_BH;
+roaring_bitmap_t *bitmap_BH;
 roaring_bitmap_t *bitmap_src;
 hashmap *hash_BH;
 
@@ -133,11 +133,11 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
     printw("dentro: %s\n", intoa(ntohl(*(__uint32_t*)key)));
     DATA *data = (DATA *)d;
     // possibile bh o certo bh
-
+    long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
     //l'unico caso da evitare è solo src = 1 e dst = 0
     if (!(data->src && !data->dst))
     {
-        long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
+        
         //printw("delta dst %ld, delta src %ld, delta %ld\n", data->time_dst.tv_sec, data->time_src.tv_sec, delta);
         if (delta > 60)
         {
@@ -152,9 +152,16 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
             if (delta > 5)
             {
                 printw("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)),delta);
+                roaring_bitmap_add(bitmap_BH, *(in_addr_t*)key);
             }
             // per dire che è tornato a funzionare??
+            else if((roaring_bitmap_contains(bitmap_BH, *(in_addr_t*)key) && delta<5))
+            {
+                printw("è tornato a funzionare: %s\n", intoa(ntohl(*(in_addr_t*)key)));
+            }
         }
+        
+
         //TODO: manca è uscito dal blackhole
     }
 }
@@ -180,24 +187,7 @@ void print_stats()
     clear();
     hashmap_iterate(hash_BH, print_hash_entry, NULL);
     printw("itero %d volte\n",c++);
-    refresh();
-    // uint32_t c = roaring_bitmap_get_cardinality(bitmap_BH);
-    // printf("black Hole totali: %u\n",c);
-    // itero i blackhole
-    // uint32_t counter = 0;
-    // roaring_iterate(bitmap_BH, print_BH, &counter);
-
-    // TODO: esempio per iterare sulla hashmap
-    //  define our callback with the correct parameters
-    // void print_entry(void* key, size_t ksize, uintptr_t value, void* usr)
-    //{
-    //	// prints the entry's key and value
-    //	// assumes the key is a null-terminated string
-    //	printf("Entry \"%s\": %i\n", key, value);
-    // }
-    //
-    //// print the key and value of each entry
-    
+    refresh();    
     // optimize(bitmap_BH);
 }
 
@@ -392,7 +382,7 @@ int main(int argc, char *argv[])
     int promisc, snaplen = DEFAULT_SNAPLEN;
 
     // bitmap create
-    // bitmap_BH = roaring_bitmap_create();
+    bitmap_BH = roaring_bitmap_create();
     bitmap_src = roaring_bitmap_create();
     // hash create
     hash_BH = hashmap_create();
@@ -445,7 +435,7 @@ int main(int argc, char *argv[])
     pcap_loop(pd, -1, dummyProcesssPacket, NULL);
 
     // free bitmap
-    // roaring_bitmap_free(bitmap_BH);
+    roaring_bitmap_free(bitmap_BH);
     roaring_bitmap_free(bitmap_src);
     // free hash
     // TODO: free the key
