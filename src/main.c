@@ -458,8 +458,7 @@ int main(int argc, char *argv[])
         refresh();
         sleep(1);
     }
-    clear();
-    printw("free completed\n");
+    printw("  free completed \n");
     refresh();
     sleep(1);
     endwin();
