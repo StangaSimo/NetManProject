@@ -137,7 +137,6 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
     //l'unico caso da evitare è solo src = 1 e dst = 0
     if (!(data->src && !data->dst))
     {
-        
         //printw("delta dst %ld, delta src %ld, delta %ld\n", data->time_dst.tv_sec, data->time_src.tv_sec, delta);
         if (delta > 60)
         {
@@ -164,6 +163,16 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 
         //TODO: manca è uscito dal blackhole
     }
+}
+
+/* ******************************** */
+
+void free_hashmap(void *key, size_t ksize, uintptr_t d, void *usr)
+{
+    DATA *data = (DATA *)d;
+    free(key);
+    roaring_bitmap_free(data->bitmap);
+    free(data);
 }
 
 /* ******************************** */
@@ -433,14 +442,26 @@ int main(int argc, char *argv[])
     alarm(ALARM_SLEEP);
 
     pcap_loop(pd, -1, dummyProcesssPacket, NULL);
+    pcap_close(pd);
+    alarm(0);
 
     // free bitmap
     roaring_bitmap_free(bitmap_BH);
     roaring_bitmap_free(bitmap_src);
     // free hash
-    // TODO: free the key
+    hashmap_iterate(hash_BH, free_hashmap, NULL); 
     hashmap_free(hash_BH);
-    pcap_close(pd);
+
+    clear();
+    for (int i=0;i<3;i++) {
+        printw(".");
+        refresh();
+        sleep(1);
+    }
+    clear();
+    printw("free completed\n");
+    refresh();
+    sleep(1);
     endwin();
     return (0);
 }
