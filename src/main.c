@@ -128,6 +128,27 @@ bool print_bh_src(uint32_t value, void *parap)
 
 /* ******************************** */
 
+int max(int a,int b){
+    if(a>b) {
+        return a;
+    }
+    return b;
+}
+
+void free_entry(struct timeval time_dst,struct timeval time_src,void *key){
+    DATA *a;
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    if(max(time.tv_sec - time_dst.tv_sec,time.tv_sec - time_src.tv_sec)>300){
+        hashmap_get(hash_BH, *(in_addr_t*)key, sizeof(key), &a);
+        roaring_bitmap_free(&a->bitmap);
+        free(&a);
+        hashmap_remove(hash_BH,(in_addr_t*)key,sizeof(key));
+    }
+}
+
+/* ******************************** */
+
 void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 {
     printw("dentro: %s\n", intoa(ntohl(*(__uint32_t*)key)));
@@ -159,7 +180,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
                 printw("è tornato a funzionare: %s\n", intoa(ntohl(*(in_addr_t*)key)));
             }
         }
-        
+       // free_entry(data->time_dst,data->time_src, key);       
 
         //TODO: manca è uscito dal blackhole
     }
