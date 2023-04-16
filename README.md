@@ -5,7 +5,7 @@ It runs a live inspection of the packets that the network adapter receive with t
 ## Requisites
 Linux:
 ```
-sudo apt-get install libpcap-dev
+sudo apt-get install libpcap-dev libncurses5-dev 
 ```
 Mac with Brew: 
 ```
