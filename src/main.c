@@ -139,12 +139,13 @@ int min(time_t a, time_t b)
 
 void free_entry(struct timeval time_dst, struct timeval time_src, void *key)
 {
-    DATA *a;
     struct timeval time;
     gettimeofday(&time, NULL);
     if (min(time.tv_sec - time_dst.tv_sec, time.tv_sec - time_src.tv_sec) > 300)
-    {
-        hashmap_get(hash_BH, *(in_addr_t *)key, sizeof(key), a);
+    {   
+        uintptr_t r;
+        hashmap_get(hash_BH, (in_addr_t *)key, sizeof(key), &r);
+        DATA *a = (DATA *) r;
         roaring_bitmap_free(a->bitmap);
         free(a);
         free(key);
@@ -205,17 +206,16 @@ void free_hashmap(void *key, size_t ksize, uintptr_t d, void *usr)
 
 /* ******************************** */
 
-void optimize(roaring_bitmap_t *bitmpap)
+void optimize_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 {
-    uint32_t expectedsizebasic = roaring_bitmap_portable_size_in_bytes(bitmpap);
-    roaring_bitmap_run_optimize(bitmpap);
-    uint32_t expectedsizerun = roaring_bitmap_portable_size_in_bytes(bitmpap);
-    printf("size before run optimize %d bytes, and after %d bytes\n", expectedsizebasic, expectedsizerun);
+    DATA *data = (DATA *)d;
+    roaring_bitmap_run_optimize(data->bitmap);
 }
 
 /* ******************************** */
 
 int c = 0;
+int cont = 0;
 
 void print_stats()
 {
@@ -225,7 +225,13 @@ void print_stats()
     hashmap_iterate(hash_BH, print_hash_entry, NULL);
     printw("itero %d volte\n", c++);
     refresh();
-    // optimize(bitmap_BH);
+    cont++;
+    if (cont >= 600) {
+        printw("optimize..\n");
+        hashmap_iterate(hash_BH, optimize_entry, NULL); 
+        cont = 0;
+    }
+    roaring_bitmap_run_optimize(bitmap_BH);
 }
 
 /* ******************************** */
@@ -418,7 +424,6 @@ int main(int argc, char *argv[])
 
     // bitmap create
     bitmap_BH = roaring_bitmap_create();
-    bitmap_src = roaring_bitmap_create();
     // hash create
     hash_BH = hashmap_create();
 
@@ -473,7 +478,6 @@ int main(int argc, char *argv[])
 
     // free bitmap
     roaring_bitmap_free(bitmap_BH);
-    // roaring_bitmap_free(bitmap_src);
     //  free hash
     hashmap_iterate(hash_BH, free_hashmap, NULL);
     hashmap_free(hash_BH);
