@@ -53,7 +53,7 @@ struct sockaddr_in intraIP;
 struct sockaddr_in myIP;
 
 roaring_bitmap_t *bitmap_BH;
-roaring_bitmap_t *bitmap_src;
+// roaring_bitmap_t *bitmap_src;
 hashmap *hash_BH;
 
 typedef struct
@@ -122,46 +122,75 @@ void sigproc(int sig)
 
 bool print_bh_src(uint32_t value, void *parap)
 {
-    printf("ip: %s\n",intoa(ntohl(value)));
-    return true; 
+    printf("ip: %s\n", intoa(ntohl(value)));
+    return true;
+}
+
+/* ******************************** */
+
+int min(time_t a, time_t b)
+{
+    if (a < b)
+    {
+        return a;
+    }
+    return b;
+}
+
+void free_entry(struct timeval time_dst, struct timeval time_src, void *key)
+{
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    if (min(time.tv_sec - time_dst.tv_sec, time.tv_sec - time_src.tv_sec) > 300)
+    {   
+        uintptr_t r;
+        hashmap_get(hash_BH, (in_addr_t *)key, sizeof(key), &r);
+        DATA *a = (DATA *) r;
+        roaring_bitmap_free(a->bitmap);
+        free(a);
+        free(key);
+        hashmap_remove(hash_BH, (in_addr_t *)key, sizeof(key));
+    }
 }
 
 /* ******************************** */
 
 void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 {
-    printw("dentro: %s\n", intoa(ntohl(*(__uint32_t*)key)));
+    printw("dentro: %s\n", intoa(ntohl(*(__uint32_t *)key)));
     DATA *data = (DATA *)d;
     // possibile bh o certo bh
     long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
-    //l'unico caso da evitare è solo src = 1 e dst = 0
+    // l'unico caso da evitare è solo src = 1 e dst = 0
     if (!(data->src && !data->dst))
     {
-        //printw("delta dst %ld, delta src %ld, delta %ld\n", data->time_dst.tv_sec, data->time_src.tv_sec, delta);
+        // printw("delta dst %ld, delta src %ld, delta %ld\n", data->time_dst.tv_sec, data->time_src.tv_sec, delta);
         if (delta > 60)
         {
             // certo bh se sono passati piu di 60 secondi
-            printw("è un bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)), delta);
+            printw("è un bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t *)key)), delta);
             uint32_t counter = 0;
-            roaring_iterate(data->bitmap,print_bh_src, &counter);
+            roaring_iterate(data->bitmap, print_bh_src, &counter);
         }
         else
         {
             // secondi e diciamo che è un possibile blackhole??
             if (delta > 5)
             {
-                printw("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t*)key)),delta);
-                roaring_bitmap_add(bitmap_BH, *(in_addr_t*)key);
+                printw("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t *)key)), delta);
+                roaring_bitmap_add(bitmap_BH, *(in_addr_t *)key);
             }
             // per dire che è tornato a funzionare??
-            else if((roaring_bitmap_contains(bitmap_BH, *(in_addr_t*)key) && delta<5))
+            else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5))
             {
-                printw("è tornato a funzionare: %s\n", intoa(ntohl(*(in_addr_t*)key)));
+                printw("è tornato a funzionare: %s\n", intoa(ntohl(*(in_addr_t *)key)));
             }
         }
-        
-
-        //TODO: manca è uscito dal blackhole
+        // TODO: manca è uscito dal blackhole
+    }
+    if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
+    {
+        free_entry(data->time_dst, data->time_src, key);
     }
 }
 
@@ -177,27 +206,32 @@ void free_hashmap(void *key, size_t ksize, uintptr_t d, void *usr)
 
 /* ******************************** */
 
-void optimize(roaring_bitmap_t *bitmpap)
+void optimize_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 {
-    uint32_t expectedsizebasic = roaring_bitmap_portable_size_in_bytes(bitmpap);
-    roaring_bitmap_run_optimize(bitmpap);
-    uint32_t expectedsizerun = roaring_bitmap_portable_size_in_bytes(bitmpap);
-    printf("size before run optimize %d bytes, and after %d bytes\n", expectedsizebasic, expectedsizerun);
+    DATA *data = (DATA *)d;
+    roaring_bitmap_run_optimize(data->bitmap);
 }
 
 /* ******************************** */
 
-int c=0; 
+int c = 0;
+int cont = 0;
 
 void print_stats()
 {
-    
-    //hashmap_iterate(hash_BH, (hashmap_callback)print_hash_entry, NULL);
+
+    // hashmap_iterate(hash_BH, (hashmap_callback)print_hash_entry, NULL);
     clear();
     hashmap_iterate(hash_BH, print_hash_entry, NULL);
-    printw("itero %d volte\n",c++);
-    refresh();    
-    // optimize(bitmap_BH);
+    printw("itero %d volte\n", c++);
+    refresh();
+    cont++;
+    if (cont >= 600) {
+        printw("optimize..\n");
+        hashmap_iterate(hash_BH, optimize_entry, NULL); 
+        cont = 0;
+    }
+    roaring_bitmap_run_optimize(bitmap_BH);
 }
 
 /* ******************************** */
@@ -285,7 +319,6 @@ void getBroadCast(char *device)
 
 /* *************************************** */
 
-
 void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u_char *p)
 {
     struct ether_header ehdr;
@@ -295,7 +328,6 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
     memcpy(&ehdr, p, sizeof(struct ether_header));
     memcpy(&ip, p + sizeof(ehdr), sizeof(struct ip));
     u_short eth_type = ntohs(ehdr.ether_type);
-
 
     if (eth_type == 0x0800)
     {
@@ -331,8 +363,8 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 src_data->dst = 0;
                 src_data->time_src = h->ts;
                 src_data->bitmap = roaring_bitmap_create();
-                printf("inserisco src %s\n",intoa(ntohl(ip.ip_src.s_addr)));
-                in_addr_t* s_addr = malloc(sizeof(in_addr_t));
+                printf("inserisco src %s\n", intoa(ntohl(ip.ip_src.s_addr)));
+                in_addr_t *s_addr = malloc(sizeof(in_addr_t));
                 memcpy(s_addr, &ip.ip_src.s_addr, sizeof(in_addr_t));
                 hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)src_data);
             }
@@ -367,8 +399,8 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 dst_data->time_dst = h->ts;
                 dst_data->bitmap = roaring_bitmap_create();
                 roaring_bitmap_add(dst_data->bitmap, ip.ip_src.s_addr);
-                printf("inserisco dest %s\n",intoa(ntohl(ip.ip_dst.s_addr)));
-                in_addr_t* s_addr = malloc(sizeof(in_addr_t));
+                printf("inserisco dest %s\n", intoa(ntohl(ip.ip_dst.s_addr)));
+                in_addr_t *s_addr = malloc(sizeof(in_addr_t));
                 memcpy(s_addr, &ip.ip_dst.s_addr, sizeof(in_addr_t));
                 hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)dst_data);
             }
@@ -392,7 +424,6 @@ int main(int argc, char *argv[])
 
     // bitmap create
     bitmap_BH = roaring_bitmap_create();
-    bitmap_src = roaring_bitmap_create();
     // hash create
     hash_BH = hashmap_create();
 
@@ -447,13 +478,13 @@ int main(int argc, char *argv[])
 
     // free bitmap
     roaring_bitmap_free(bitmap_BH);
-    roaring_bitmap_free(bitmap_src);
-    // free hash
-    hashmap_iterate(hash_BH, free_hashmap, NULL); 
+    //  free hash
+    hashmap_iterate(hash_BH, free_hashmap, NULL);
     hashmap_free(hash_BH);
 
     clear();
-    for (int i=0;i<3;i++) {
+    for (int i = 0; i < 3; i++)
+    {
         printw(".");
         refresh();
         sleep(1);
