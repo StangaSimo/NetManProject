@@ -190,48 +190,43 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
     DATA *data = (DATA *)d;
     // possibile bh o certo bh
     long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
-    // l'unico caso da evitare è solo src = 1 e dst = 0
 
+    // l'unico caso da evitare è solo src = 1 e dst = 0
     if (!(data->src && !data->dst))
     {
-        // TODO: 2 sec verde, 5 giallo, 10 rosso
-        if (1)
+        if (delta > 5)
         {
-            //printf("è un bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t *)key)), delta);
             print_line_table(0);
+            uint32_t counter = 0;
+            // per elencare chi a parlato con il bh
+            // roaring_iterate(data->bitmap, print_bh_src, &counter);
         }
         else
         {
-            if (delta > 5)
+            if (delta > 2)
             {
                 print_line_table(1);
-                uint32_t counter = 0;
-                //per elencare chi a parlato con il bh
-                //roaring_iterate(data->bitmap, print_bh_src, &counter);
+                // printf("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t *)key)), delta);
+                roaring_bitmap_add(bitmap_BH, *(in_addr_t *)key);
             }
-            else
+            // é tornato a funzionare
+            else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5))
             {
-                if (delta > 2)
-                {
-                    print_line_table(2);
-                    // printf("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t *)key)), delta);
-                    roaring_bitmap_add(bitmap_BH, *(in_addr_t *)key);
-                }
-                // é tornato a funzionare
-                else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5))
-                {
-                    printf("E tornato a funzionare: %s\n", intoa(ntohl(*(in_addr_t *)key)));
-                    roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
-                }
+                print_line_table(2);
+                printf("E tornato a funzionare: %s\n", intoa(ntohl(*(in_addr_t *)key)));
+                roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
+            } 
+            else {
+                print_line_table(2);
             }
         }
+        printf("ip: %s\n", intoa(ntohl(*(__uint32_t *)key)));
     }
-    // free entry 
+    // free entry
     if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
     {
         free_entry(data->time_dst, data->time_src, key);
     }
-    printf("HASH: %s\n", intoa(ntohl(*(__uint32_t *)key)));
 }
 
 /*************************************************/
@@ -245,7 +240,7 @@ void print_stats()
     // hashmap_iterate(hash_BH, (hashmap_callback)print_hash_entry, NULL);
     printf("\n\n\n\nITERAZIONE: %d\n", c++);
     printf("------------------------------------------------------\n");
-    printf("|  | IP BlackHole | Last RX Time | Last TX Time |\n");
+    printf("|  | IP BlackHole | Last RX Time | Last TX Time | Packets |  \n");
     hashmap_iterate(hash_BH, print_hash_entry, NULL);
     printf("------------------------------------------------------\n");
 
