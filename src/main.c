@@ -1,3 +1,9 @@
+//TODO: 
+//stampare con il colore e ordinato
+// 
+// 
+
+
 #include <pcap/pcap.h>
 #include <signal.h>
 #include <sched.h>
@@ -163,7 +169,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
     long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
     // l'unico caso da evitare è solo src = 1 e dst = 0
     if (!(data->src && !data->dst))
-    {
+    {   //TODO: 30 sec verde, 30-5 giallo, 5-inf rosso 
         // printw("delta dst %ld, delta src %ld, delta %ld\n", data->time_dst.tv_sec, data->time_src.tv_sec, delta);
         if (delta > 60)
         {
