@@ -18,7 +18,7 @@ make
 sudo ./nmp -i NetworkAdapterName
 ```
 
-## how it work
+## How it work
 Il programma utilizza la libreria pcap, prende i pacchetti dalla scheda di rete data in input. 
 Analizzando solo i pacchetti TCP, tramite una HashMap teniamo traccia di tutti gli host che hanno traffico rx o tx.
 
