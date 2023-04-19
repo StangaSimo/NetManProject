@@ -179,7 +179,6 @@ void print_line_table(int c) {
     }
     printf("⬤ ");
     printf("%s", NORMAL);
-    printf("|");
 }
 
 /*************************************************/
@@ -222,7 +221,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
                 print_line_table(2);
             }
         }
-        printf("%s\n", intoa(ntohl(*(__uint32_t *)key)));
+        printf("| %-16s |\n", intoa(ntohl(*(__uint32_t *)key)));
     }
     // free entry
     if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
@@ -242,7 +241,7 @@ void print_stats()
     // hashmap_iterate(hash_BH, (hashmap_callback)print_hash_entry, NULL);
     printf("\n\n\n\nITERAZIONE: %d\n", c++);
     printf("------------------------------------------------------\n");
-    printf("|  | IP BlackHole | Last RX Time | Last TX Time | Packets |  \n");
+    printf("|  |        IP        | Last RX Time | Last TX Time | Packets |  \n");
     hashmap_iterate(hash_BH, print_hash_entry, NULL);
     printf("------------------------------------------------------\n");
 
