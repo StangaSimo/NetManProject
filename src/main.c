@@ -176,7 +176,6 @@ void print_line_table(int c) {
     case 2:
         printf("%s", GREEN);
         break;
-        break;
     }
     printf("⬤ ");
     printf("%s", NORMAL);
@@ -196,6 +195,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
     {
         if (delta > 5)
         {
+            //MOLTO Possibile Black hole
             print_line_table(0);
             uint32_t counter = 0;
             // per elencare chi a parlato con il bh
@@ -205,22 +205,24 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
         {
             if (delta > 2)
             {
+                //Possibile BlackHole
                 print_line_table(1);
                 // printf("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t *)key)), delta);
                 roaring_bitmap_add(bitmap_BH, *(in_addr_t *)key);
             }
-            // é tornato a funzionare
             else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5))
             {
+                //E' tornato a funzionare
                 print_line_table(2);
                 printf("E tornato a funzionare: %s\n", intoa(ntohl(*(in_addr_t *)key)));
                 roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
             } 
             else {
+                //Host normale
                 print_line_table(2);
             }
         }
-        printf("ip: %s\n", intoa(ntohl(*(__uint32_t *)key)));
+        printf("%s\n", intoa(ntohl(*(__uint32_t *)key)));
     }
     // free entry
     if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
