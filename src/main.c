@@ -221,7 +221,10 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
                 print_line_table(2);
             }
         }
-        printf("| %-16s |\n", intoa(ntohl(*(__uint32_t *)key)));
+        printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
+        printf(" %-12ld |", data->time_dst.tv_sec);
+        printf(" %-12ld |", data->time_src.tv_sec);
+        printf(" %-7d |\n", (int)roaring_bitmap_get_cardinality(data->bitmap));
     }
     // free entry
     if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
