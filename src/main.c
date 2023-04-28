@@ -146,6 +146,8 @@ int min(time_t a, time_t b)
     return b;
 }
 
+/*************************************************/
+
 void free_entry(struct timeval time_dst, struct timeval time_src, void *key)
 {
     struct timeval time;
