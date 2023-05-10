@@ -154,13 +154,20 @@ void free_entry(struct timeval time_dst, struct timeval time_src, void *key)
     gettimeofday(&time, NULL);
     if (min(time.tv_sec - time_dst.tv_sec, time.tv_sec - time_src.tv_sec) > 300)
     {   
+        printf("1");
         uintptr_t r;
         hashmap_get(hash_BH, (in_addr_t *)key, sizeof(key), &r);
+        printf("2");
         DATA *a = (DATA *) r;
+        printf("3");
         roaring_bitmap_free(a->bitmap);
+        printf("4");
         free(a);
+        printf("5");
         free(key);
+        printf("6");
         hashmap_remove(hash_BH, (in_addr_t *)key, sizeof(key));
+        printf("7");
     }
 }
 
@@ -198,8 +205,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
         {
             //MOLTO Possibile Black hole
             print_line_table(0);
-            uint32_t counter = 0;
-            // per elencare chi a parlato con il bh
+
             // roaring_iterate(data->bitmap, print_bh_src, &counter);
         }
         else
@@ -223,9 +229,14 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
                 print_line_table(2);
             }
         }
+        time_t d_time = data->time_dst.tv_sec + 7200;
+        time_t s_time = data->time_src.tv_sec + 7200;
+        struct tm *dst_time = gmtime(&d_time);
+        struct tm *src_time = gmtime(&s_time);
+        //printf("hour %lld, min %lld \n", (long long)dst_time->tm_hour, (long long)dst_time->tm_min);
         printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
-        printf(" %-12ld |", data->time_dst.tv_sec);
-        printf(" %-12ld |", data->time_src.tv_sec);
+        printf(" %lld.%lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
+        printf(" %lld.%lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min), (long long)src_time->tm_sec;
         printf(" %-7d |\n", (int)roaring_bitmap_get_cardinality(data->bitmap));
     }
     // free entry
@@ -299,24 +310,6 @@ char *proto2str(u_short proto)
         return (protoName);
     }
 }
-
-/*************************************************/
-
-/*long delta_time(struct timeval *now, struct timeval *before)
-{
-    time_t delta_seconds;
-    time_t delta_microseconds;
-    delta_seconds = now->tv_sec - before->tv_sec;
-
-    delta_microseconds = now->tv_usec - before->tv_usec;
-    if (delta_microseconds < 0)
-    {
-        delta_microseconds += 1000000;
-        --delta_seconds;
-    }
-    return ((delta_seconds * 1000000) + delta_microseconds);
-}
-*/
 
 /*************************************************/
 
