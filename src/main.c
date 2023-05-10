@@ -220,7 +220,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
         struct tm *src_time = gmtime(&s_time);
         printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
         printf(" %lld.%lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
-        printf(" %lld.%lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min), (long long)src_time->tm_sec;
+        printf(" %lld.%lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
         printf(" %ld:%-4ld |\n", data->rx_packet, data->tx_packet);
     }
 
@@ -326,7 +326,7 @@ void getBroadCast(char *device)
     inet_pton(AF_INET, ip, &myIP.sin_addr);
     broadcastIP.sin_addr.s_addr = su->sin_addr.s_addr | ~(sa->sin_addr.s_addr);
     inet_ntop(AF_INET, &(broadcastIP.sin_addr), broad, INET_ADDRSTRLEN);
-    printf("SubnetMask:%s localIP:%s broadcastIP: %s\n", subnet_mask, ip, broad);
+    printf("\n\nSubnetMask:%s \nLocalIP:%s \nBroadcastIP: %s\n", subnet_mask, ip, broad);
     freeifaddrs(ifaddr);
 }
 
