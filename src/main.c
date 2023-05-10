@@ -1,9 +1,3 @@
-//TODO: 
-//stampare con il colore e ordinato
-// 
-// 
-
-
 #include <pcap/pcap.h>
 #include <signal.h>
 #include <sched.h>
@@ -12,17 +6,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <pwd.h>
-#define ALARM_SLEEP 1
-#define DEFAULT_SNAPLEN 256
-#define hash_DIM 256
-
 #include <stdlib.h>
 #include <stddef.h>
-
-pcap_t *pd;
-int verbose = 0;
-struct pcap_stat pcapStats;
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -37,19 +22,20 @@ struct pcap_stat pcapStats;
 #include <netinet/ip.h>
 #include <net/ethernet.h>
 #include <arpa/inet.h>
-
-// https://github.com/RoaringBitmap/CRoaring
-// https://github.com/Mashpoe/c-hashmap#proper-usage-of-keys
-
-// static struct timeval startTime;
-// unsigned long long numPkts = 0, numBytes = 0;
-
 #include <ifaddrs.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include "roaring.c"
 #include "map.c"
-#include <ncurses.h>
+
+#define ALARM_SLEEP 1
+#define DEFAULT_SNAPLEN 256
+#define hash_DIM 256
+
+#define RED "\x1b[31m"
+#define GREEN "\x1b[32m"
+#define YELLOW "\x1b[33m"
+#define NORMAL "\x1b[m"
 
 struct sockaddr_in broadcastIP;
 struct sockaddr_in allbroadcastIP;
@@ -58,18 +44,26 @@ struct sockaddr_in maxMultiIP;
 struct sockaddr_in intraIP;
 struct sockaddr_in myIP;
 
-roaring_bitmap_t *bitmap_BH;
-// roaring_bitmap_t *bitmap_src;
-hashmap *hash_BH;
-
 typedef struct
 {
     int src;
     int dst;
+    long tx_packet;
+    long rx_packet;
     struct timeval time_src;
     struct timeval time_dst;
     roaring_bitmap_t *bitmap;
 } DATA;
+
+pcap_t *pd;
+int verbose = 0;
+struct pcap_stat pcapStats;
+
+roaring_bitmap_t *bitmap_BH;
+hashmap *hash_BH;
+
+// https://github.com/RoaringBitmap/CRoaring
+// https://github.com/Mashpoe/c-hashmap#proper-usage-of-keys
 
 /*************************************************/
 
@@ -103,7 +97,15 @@ char *__intoa(unsigned int addr, char *buf, u_short bufLen)
     return (retStr);
 }
 
-/* ************************************ */
+/*************************************************/
+
+void optimize_entry(void *key, size_t ksize, uintptr_t d, void *usr)
+{
+    DATA *data = (DATA *)d;
+    roaring_bitmap_run_optimize(data->bitmap);
+}
+
+/*************************************************/
 
 static char buf[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"];
 char *intoa(unsigned int addr)
@@ -111,7 +113,7 @@ char *intoa(unsigned int addr)
     return (__intoa(addr, buf, sizeof(buf)));
 }
 
-/* ******************************** */
+/*************************************************/
 
 void sigproc(int sig)
 {
@@ -124,7 +126,7 @@ void sigproc(int sig)
     pcap_breakloop(pd);
 }
 
-/* ******************************** */
+/*************************************************/
 
 bool print_bh_src(uint32_t value, void *parap)
 {
@@ -132,7 +134,7 @@ bool print_bh_src(uint32_t value, void *parap)
     return true;
 }
 
-/* ******************************** */
+/*************************************************/
 
 int min(time_t a, time_t b)
 {
@@ -143,64 +145,117 @@ int min(time_t a, time_t b)
     return b;
 }
 
-void free_entry(struct timeval time_dst, struct timeval time_src, void *key)
+/*************************************************/
+
+void free_entry(struct timeval time_dst, struct timeval time_src, void *key, DATA *data)
 {
     struct timeval time;
     gettimeofday(&time, NULL);
-    if (min(time.tv_sec - time_dst.tv_sec, time.tv_sec - time_src.tv_sec) > 300)
+    if (min(time.tv_sec - time_dst.tv_sec, time.tv_sec - time_src.tv_sec) > 10)
     {   
         uintptr_t r;
-        hashmap_get(hash_BH, (in_addr_t *)key, sizeof(key), &r);
-        DATA *a = (DATA *) r;
-        roaring_bitmap_free(a->bitmap);
-        free(a);
+        roaring_bitmap_free(data->bitmap);
+        free(data);
+        hashmap_remove(hash_BH, (in_addr_t *)key, sizeof(in_addr_t));
         free(key);
-        hashmap_remove(hash_BH, (in_addr_t *)key, sizeof(key));
     }
 }
 
-/* ******************************** */
+/*************************************************/
+
+void print_line_table(int c) {
+    printf("|");
+    switch (c)
+    {
+    case 0:
+        printf("%s", RED);
+        break;
+    case 1:
+        printf("%s", YELLOW);
+    case 2:
+        printf("%s", GREEN);
+        break;
+    }
+    printf("⬤ ");
+    printf("%s", NORMAL);
+}
+
+/*************************************************/
 
 void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 {
-    printw("dentro: %s\n", intoa(ntohl(*(__uint32_t *)key)));
     DATA *data = (DATA *)d;
-    // possibile bh o certo bh
     long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
-    // l'unico caso da evitare è solo src = 1 e dst = 0
+
     if (!(data->src && !data->dst))
-    {   //TODO: 30 sec verde, 30-5 giallo, 5-inf rosso 
-        // printw("delta dst %ld, delta src %ld, delta %ld\n", data->time_dst.tv_sec, data->time_src.tv_sec, delta);
-        if (delta > 60)
+    {
+        if (delta > 5) //5 second?
         {
-            // certo bh se sono passati piu di 60 secondi
-            printw("è un bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t *)key)), delta);
-            uint32_t counter = 0;
-            roaring_iterate(data->bitmap, print_bh_src, &counter);
+            //Black hole
+            print_line_table(0);
         }
         else
         {
-            // secondi e diciamo che è un possibile blackhole??
-            if (delta > 5)
+            if (delta > 2) 
             {
-                printw("possibile bh: %s, non ha tx da %ld\n", intoa(ntohl(*(in_addr_t *)key)), delta);
+                //Possible BlackHole
+                print_line_table(1);
                 roaring_bitmap_add(bitmap_BH, *(in_addr_t *)key);
             }
-            // per dire che è tornato a funzionare??
             else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5))
             {
-                printw("è tornato a funzionare: %s\n", intoa(ntohl(*(in_addr_t *)key)));
+                //Back to send Packets 
+                print_line_table(2);
+                printf("Back to Working: %s\n", intoa(ntohl(*(in_addr_t *)key)));
+                roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
+            } 
+            else {
+                //Normal Host
+                print_line_table(2);
             }
         }
-        // TODO: manca è uscito dal blackhole
+        time_t d_time = data->time_dst.tv_sec + 7200;
+        time_t s_time = data->time_src.tv_sec + 7200;
+        struct tm *dst_time = gmtime(&d_time);
+        struct tm *src_time = gmtime(&s_time);
+        printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
+        printf(" %lld.%lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
+        printf(" %lld.%lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min), (long long)src_time->tm_sec;
+        printf(" %ld:%-4ld |\n", data->rx_packet, data->tx_packet);
     }
+
+    // free host after 300 seconds of inactivity 
     if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
     {
-        free_entry(data->time_dst, data->time_src, key);
+        free_entry(data->time_dst, data->time_src, key, data);
     }
 }
 
-/* ******************************** */
+/*************************************************/
+
+int c = 0;
+int cont = 0;
+
+void print_stats()
+{
+
+    printf("\n\n\n\nITER: %d\n", c++);
+    printf("------------------------------------------------------\n");
+    printf("|  |        IP        | Last RX Time | Last TX Time | Packets RX:TX |  \n");
+    hashmap_iterate(hash_BH, print_hash_entry, NULL);
+    printf("------------------------------------------------------\n");
+
+    //bit map optimization after 600 sec 
+    cont++;
+    if (cont >= 600) {
+        //printf("Optimize..\n");
+        hashmap_iterate(hash_BH, optimize_entry, NULL); 
+        cont = 0;
+    }
+    roaring_bitmap_run_optimize(bitmap_BH);
+}
+
+/*************************************************/
 
 void free_hashmap(void *key, size_t ksize, uintptr_t d, void *usr)
 {
@@ -210,37 +265,8 @@ void free_hashmap(void *key, size_t ksize, uintptr_t d, void *usr)
     free(data);
 }
 
-/* ******************************** */
 
-void optimize_entry(void *key, size_t ksize, uintptr_t d, void *usr)
-{
-    DATA *data = (DATA *)d;
-    roaring_bitmap_run_optimize(data->bitmap);
-}
-
-/* ******************************** */
-
-int c = 0;
-int cont = 0;
-
-void print_stats()
-{
-
-    // hashmap_iterate(hash_BH, (hashmap_callback)print_hash_entry, NULL);
-    clear();
-    hashmap_iterate(hash_BH, print_hash_entry, NULL);
-    printw("itero %d volte\n", c++);
-    refresh();
-    cont++;
-    if (cont >= 600) {
-        printw("optimize..\n");
-        hashmap_iterate(hash_BH, optimize_entry, NULL); 
-        cont = 0;
-    }
-    roaring_bitmap_run_optimize(bitmap_BH);
-}
-
-/* ******************************** */
+/*************************************************/
 
 void my_sigalarm(int sig)
 {
@@ -249,7 +275,7 @@ void my_sigalarm(int sig)
     signal(SIGALRM, my_sigalarm);
 }
 
-/* *************************************** */
+/*************************************************/
 
 char *proto2str(u_short proto)
 {
@@ -269,27 +295,8 @@ char *proto2str(u_short proto)
     }
 }
 
-/* *************************************** */
+/*************************************************/
 
-/*long delta_time(struct timeval *now, struct timeval *before)
-{
-    time_t delta_seconds;
-    time_t delta_microseconds;
-    delta_seconds = now->tv_sec - before->tv_sec;
-
-    delta_microseconds = now->tv_usec - before->tv_usec;
-    if (delta_microseconds < 0)
-    {
-        delta_microseconds += 1000000;
-        --delta_seconds;
-    }
-    return ((delta_seconds * 1000000) + delta_microseconds);
-}
-*/
-
-/* *************************************** */
-
-// struct sockaddr_in* getSubnetMask(char* device) {
 void getBroadCast(char *device)
 {
     struct ifaddrs *ifaddr, *ifa;
@@ -323,7 +330,7 @@ void getBroadCast(char *device)
     freeifaddrs(ifaddr);
 }
 
-/* *************************************** */
+/*************************************************/
 
 void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u_char *p)
 {
@@ -337,92 +344,93 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 
     if (eth_type == 0x0800)
     {
-        if (ip.ip_p == IPPROTO_TCP)
+        if (ip.ip_p == IPPROTO_TCP &&
+
+            (ntohl(ip.ip_dst.s_addr) != ntohl(broadcastIP.sin_addr.s_addr)) &&
+            (ntohl(ip.ip_dst.s_addr) != ntohl(intraIP.sin_addr.s_addr)) &&
+
+            //(ntohl(ip.ip_dst.s_addr) != ntohl(myIP.sin_addr.s_addr)) &&
+            //(ntohl(ip.ip_src.s_addr) != ntohl(myIP.sin_addr.s_addr)) &&
+
+            (ntohl(ip.ip_dst.s_addr) != ntohl(allbroadcastIP.sin_addr.s_addr)) &&
+            (ntohl(ip.ip_dst.s_addr) < ntohl(minMultiIP.sin_addr.s_addr) || ntohl(ip.ip_dst.s_addr) > ntohl(maxMultiIP.sin_addr.s_addr)))
         {
-            // time_dst = tempo ultimo pacchetto rx
-            // time_src = tempo ultimo pacchetto tx,
+                // time_dst = tempo ultimo pacchetto rx
+                // time_src = tempo ultimo pacchetto tx,
+                // in caso l'host abbia solo traffico rx,
+                // time_src = tempo primo pacchetto rx
 
-            // in caso l'host abbia solo traffico rx,
-            // time_src = tempo primo pacchetto rx
-
-            uintptr_t r;
-            if (hashmap_get(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), &r))
-            {
-                // SRC presente
-                DATA *data = (DATA *)r;
-
-                if (!(data->src))
+                uintptr_t r;
+                if (hashmap_get(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), &r))
                 {
-                    // l'host era solo DST
-                    data->src = 1;
+                    // SRC present
+                    DATA *data = (DATA *)r;
+
+                    data->tx_packet++;
+
+                    if (!(data->src))
+                    {
+                        // host was only dst
+                        data->src = 1;
+                    }
+
+                    // update last rx time packet
+                    data->time_src = h->ts;
+                }
+                else
+                {
+                    // SRC not present
+                    DATA *src_data;
+                    src_data = malloc(sizeof(DATA));
+                    src_data->src = 1;
+                    src_data->dst = 0;
+                    src_data->rx_packet = 0;
+                    src_data->tx_packet = 1;
+                    src_data->time_src = h->ts;
+                    src_data->bitmap = roaring_bitmap_create();
+                    in_addr_t *s_addr = malloc(sizeof(in_addr_t));
+                    memcpy(s_addr, &ip.ip_src.s_addr, sizeof(in_addr_t));
+                    hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)src_data);
                 }
 
-                // update il tempo dell'ultimo pacchetto
-                data->time_src = h->ts;
-            }
-            else
-            {
-                // SRC non presente
-                DATA *src_data;
-                src_data = malloc(sizeof(DATA));
-                src_data->src = 1;
-                src_data->dst = 0;
-                src_data->time_src = h->ts;
-                src_data->bitmap = roaring_bitmap_create();
-                printf("inserisco src %s\n", intoa(ntohl(ip.ip_src.s_addr)));
-                in_addr_t *s_addr = malloc(sizeof(in_addr_t));
-                memcpy(s_addr, &ip.ip_src.s_addr, sizeof(in_addr_t));
-                hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)src_data);
-            }
-
-            if (hashmap_get(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_dst.s_addr), &r))
-            {
-                // DST Presente
-                DATA *data = (DATA *)r;
-                if (!(data->dst))
+                if (hashmap_get(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_dst.s_addr), &r))
                 {
-                    // l'host era solo SRC
-                    data->dst = 1;
+                    // DST present
+                    DATA *data = (DATA *)r;
+                    data->rx_packet++;
+
+                    if (!(data->dst))
+                        data->dst = 1; // l'host was only src
+
+                    data->time_dst = h->ts;
+
+                    if (!(roaring_bitmap_contains(data->bitmap, ip.ip_src.s_addr)))
+                        roaring_bitmap_add(data->bitmap, ip.ip_src.s_addr);
                 }
-
-                // update tempo ultimo pacchetto dst
-                data->time_dst = h->ts;
-
-                // si aggiunge src alla bitmap
-                if (!(roaring_bitmap_contains(data->bitmap, ip.ip_src.s_addr)))
+                else
                 {
-                    roaring_bitmap_add(data->bitmap, ip.ip_src.s_addr);
+                    // DST not present
+                    DATA *dst_data = malloc(sizeof(DATA));
+                    dst_data->dst = 1;
+                    dst_data->src = 0;
+                    dst_data->rx_packet = 1;
+                    dst_data->tx_packet = 0;
+                    dst_data->time_src = h->ts;
+                    dst_data->time_dst = h->ts;
+                    dst_data->bitmap = roaring_bitmap_create();
+                    roaring_bitmap_add(dst_data->bitmap, ip.ip_src.s_addr);
+                    in_addr_t *s_addr = malloc(sizeof(in_addr_t));
+                    memcpy(s_addr, &ip.ip_dst.s_addr, sizeof(in_addr_t));
+                    hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)dst_data);
                 }
-            }
-            else
-            {
-                // DST non presente
-                DATA *dst_data = malloc(sizeof(DATA));
-                dst_data->dst = 1;
-                dst_data->src = 0;
-                // usiamo time_src per salvarci il primo pacchetto che arriva se siamo solo dst
-                dst_data->time_src = h->ts;
-                dst_data->time_dst = h->ts;
-                dst_data->bitmap = roaring_bitmap_create();
-                roaring_bitmap_add(dst_data->bitmap, ip.ip_src.s_addr);
-                printf("inserisco dest %s\n", intoa(ntohl(ip.ip_dst.s_addr)));
-                in_addr_t *s_addr = malloc(sizeof(in_addr_t));
-                memcpy(s_addr, &ip.ip_dst.s_addr, sizeof(in_addr_t));
-                hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)dst_data);
-            }
         }
-    }
-    else
-    {
-        // printf("don't know");
     }
 }
 
-/* *************************************** */
+/*************************************************/
 
 int main(int argc, char *argv[])
 {
-    initscr();
     char *device = NULL;
     u_char c;
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -464,7 +472,7 @@ int main(int argc, char *argv[])
     inet_pton(AF_INET, "239.255.255.255", &maxMultiIP.sin_addr);
     inet_pton(AF_INET, "255.255.255.255", &allbroadcastIP.sin_addr);
     inet_pton(AF_INET, "192.168.222.11", &intraIP.sin_addr);
-    /* hardcode: promisc=1, to_ms=500 */
+
     promisc = 1;
 
     if ((pd = pcap_open_live(device, snaplen, promisc, 500, errbuf)) == NULL)
@@ -482,22 +490,9 @@ int main(int argc, char *argv[])
     pcap_close(pd);
     alarm(0);
 
-    // free bitmap
+    // exit
     roaring_bitmap_free(bitmap_BH);
-    //  free hash
     hashmap_iterate(hash_BH, free_hashmap, NULL);
     hashmap_free(hash_BH);
-
-    clear();
-    for (int i = 0; i < 3; i++)
-    {
-        printw(".");
-        refresh();
-        sleep(1);
-    }
-    printw("  free completed \n");
-    refresh();
-    sleep(1);
-    endwin();
     return (0);
 }
