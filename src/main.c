@@ -262,7 +262,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 
     if (!(data->src && !data->dst))
     {
-        if (delta > 5) //5 second?
+        if ((delta==0 && data->tx_packet==0 && data->rx_packet>10)||delta > 5) //5 second?
         {
             //Black hole
             print_line_table(0);
@@ -292,6 +292,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
                 // Back to send Packets
                 print_line_table(2);
                 printf("Back to Working: %s\n", intoa(ntohl(*(in_addr_t *)key)));
+                print_line_table(2);
                 roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
                 char rrdfile[100];
                 sprintf(rrdfile, "rrd_bin/db/%s", intoa(ntohl(*(in_addr_t *)key)));
@@ -309,10 +310,9 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
         struct tm *dst_time = gmtime(&d_time);
         struct tm *src_time = gmtime(&s_time);
         printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
-        printf(" %lld.%lld.%-6lld |", (long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
-        printf(" %lld.%lld.%-6lld |", (long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
+        printf(" %lld.%lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
+        printf(" %lld.%lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
         printf(" %ld:%-4ld |\n", data->rx_packet, data->tx_packet);
-        // printf("delta %ld dst %ld src %ld \n\n",delta,data->time_dst.tv_sec,data->time_src.tv_sec);
     }
 
     // free host after 300 seconds of inactivity
