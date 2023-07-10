@@ -30,6 +30,9 @@
 #include "map.c"
 
 #define ALARM_SLEEP 1
+#define GRAPH_SLEEP 5
+#define OPTIMIZE_SLEEP 600 
+
 #define DEFAULT_SNAPLEN 256
 #define hash_DIM 256
 
@@ -113,10 +116,7 @@ void optimize_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 /*************************************************/
 
 static char buf[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"];
-char *intoa(unsigned int addr)
-{
-    return (__intoa(addr, buf, sizeof(buf)));
-}
+char *intoa(unsigned int addr) { return (__intoa(addr, buf, sizeof(buf))); }
 
 /*************************************************/
 
@@ -133,6 +133,7 @@ void sigproc(int sig)
 
 /*************************************************/
 
+
 bool print_bh_src(uint32_t value, void *parap)
 {
     printf("ip: %s\n", intoa(ntohl(value)));
@@ -144,9 +145,7 @@ bool print_bh_src(uint32_t value, void *parap)
 int min(time_t a, time_t b)
 {
     if (a < b)
-    {
         return a;
-    }
     return b;
 }
 
@@ -192,17 +191,13 @@ bool iter(uint32_t value, void* p)
     char rrdfile[100];
     sprintf(rrdfile, "rrd_bin/db/%s", intoa(ntohl(value)));
     char command[1000];
-    sprintf(command, "rrdtool graph %s.png -w 1920 -h 1080 -D --start end-120s DEF:da1=%s.rrd:speed:AVERAGE LINE:da1#ff0000:'1' ",rrdfile,rrdfile);
+    sprintf(command, "rrdtool graph rrd_bin/graph/%s.png -w 1920 -h 1080 -D --start end-120s DEF:da1=%s.rrd:speed:AVERAGE LINE:da1#ff0000:'1' ", intoa(ntohl(value)), rrdfile);
     system(command);
     printf("creo graf %s\n", intoa(ntohl(value)));
-    return true; // iterate till the end
+    return true; 
 }
 
-void rd_graph()
-{
-    //bitmap_BH;
-    roaring_iterate(bitmap_BH, iter, NULL);
-}
+void rd_graph() { roaring_iterate(bitmap_BH, iter, NULL); }
 
 /*************************************************/
 
@@ -210,14 +205,13 @@ void rd_create(in_addr_t ip)
 {
     char rrdfile[100];
     sprintf(rrdfile,"rrd_bin/db/%s.rrd",intoa(ntohl(ip)));
-    int rra_step = 1;  // ogni quanto dare il valore, 5 minuti
-    unsigned long start_time = 1621314000;  // Esempio di tempo di inizio (Unix timestamp)
+    int rra_step = 1;  // ogni quanto dare il valore
+    unsigned long start_time = 1621314000;
     unsigned long rrd_argc = 2;
     const char** rrd_argv = calloc(sizeof(char*),2);
     rrd_argv[0] = "DS:speed:GAUGE:10:0:1000000";
     rrd_argv[1] = "RRA:AVERAGE:0.5:1:60";
 
-    // Creazione del file RRD
     int ret = rrd_create_r(rrdfile, rra_step, start_time, rrd_argc, rrd_argv);
     if (ret != 0) {
         printf("Errore CREATE\n");
@@ -233,10 +227,8 @@ long rd_update(in_addr_t ip, long p,long base)
 {
     char rrdfile[100];
     long res = p-base;
-    printf("\nres: %lu  p:%lu\n",res,p);
     sprintf(rrdfile,"rrd_bin/db/%s.rrd",intoa(ntohl(ip)));
     unsigned long rrd_argc = 1;
-    //char arg[100];
     char arg[100];
     const char** rrd_argv = calloc(sizeof(char*),1);
     sprintf(arg,"N:%ld",res);
@@ -271,18 +263,15 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
         }
         else
         {
-            if (delta > 2)
+            if (1)//(delta > 2)
             {
                 // Possible BlackHole
                 print_line_table(1);
                 if (roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key))
-                {
                     data->rx_packet_base = rd_update(*(in_addr_t *)key, data->rx_packet, data->rx_packet_base);
-                }
                 else
                 {
                     roaring_bitmap_add(bitmap_BH, *(in_addr_t *)key);
-                    // Creazione db
                     data->rx_packet_base = data->rx_packet;
                     rd_create(*(in_addr_t *)key);
                 }
@@ -291,19 +280,15 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
             {
                 // Back to send Packets
                 print_line_table(2);
-                printf("Back to Working: %s\n", intoa(ntohl(*(in_addr_t *)key)));
+                //printf("Back to Working: %s\n", intoa(ntohl(*(in_addr_t *)key)));
                 print_line_table(2);
                 roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
                 char rrdfile[100];
                 sprintf(rrdfile, "rrd_bin/db/%s", intoa(ntohl(*(in_addr_t *)key)));
                 remove(rrdfile);
-                // eliminazione file rrd
             }
             else
-            {
-                // Normal Host
                 print_line_table(2);
-            }
         }
         time_t d_time = data->time_dst.tv_sec + 7200;
         time_t s_time = data->time_src.tv_sec + 7200;
@@ -312,21 +297,18 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
         printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
         printf(" %lld.%lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
         printf(" %lld.%lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
-        printf(" %ld:%-4ld |\n", data->rx_packet, data->tx_packet);
+        printf("     %ld:%-6ld  |\n", data->rx_packet, data->tx_packet);
     }
 
     // free host after 300 seconds of inactivity
     if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
-    {
         free_entry(data->time_dst, data->time_src, key, data);
-    }
 }
 
 /*************************************************/
 
 int c = 0;
 int cont = 0;
-
 void print_stats()
 {
     printf("\n\n\n\nITER: %d\n", c++);
@@ -337,14 +319,13 @@ void print_stats()
 
     // bit map optimization after 600 sec
     cont++;
-    if ((cont % 5) == 0)
+    if ((cont % GRAPH_SLEEP) == 0)
     {
         rd_graph();
         // stampare i grafici
     }
-    if (cont >= 600)
+    if (cont >= OPTIMIZE_SLEEP)
     {
-        // printf("Optimize..\n");
         hashmap_iterate(hash_BH, optimize_entry, NULL);
         cont = 0;
     }
@@ -376,7 +357,6 @@ void my_sigalarm(int sig)
 char *proto2str(u_short proto)
 {
     static char protoName[8];
-
     switch (proto)
     {
     case IPPROTO_TCP:
@@ -441,13 +421,10 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
     if (eth_type == 0x0800)
     {
         if (ip.ip_p == IPPROTO_TCP &&
-
             (ntohl(ip.ip_dst.s_addr) != ntohl(broadcastIP.sin_addr.s_addr)) &&
             (ntohl(ip.ip_dst.s_addr) != ntohl(intraIP.sin_addr.s_addr)) &&
-
             //(ntohl(ip.ip_dst.s_addr) != ntohl(myIP.sin_addr.s_addr)) &&
             //(ntohl(ip.ip_src.s_addr) != ntohl(myIP.sin_addr.s_addr)) &&
-
             (ntohl(ip.ip_dst.s_addr) != ntohl(allbroadcastIP.sin_addr.s_addr)) &&
             (ntohl(ip.ip_dst.s_addr) < ntohl(minMultiIP.sin_addr.s_addr) || ntohl(ip.ip_dst.s_addr) > ntohl(maxMultiIP.sin_addr.s_addr)))
         {
@@ -461,17 +438,10 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 {
                     // SRC present
                     DATA *data = (DATA *)r;
-
                     data->tx_packet++;
-
-                    if (!(data->src))
-                    {
-                        // host was only dst
+                    if (!(data->src)) // host was only dst
                         data->src = 1;
-                    }
-
-                    // update last rx time packet
-                    data->time_src = h->ts;
+                    data->time_src = h->ts; // update last rx time packet
                 }
                 else
                 {
@@ -494,12 +464,9 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                     // DST present
                     DATA *data = (DATA *)r;
                     data->rx_packet++;
-
                     if (!(data->dst))
                         data->dst = 1; // l'host was only src
-
                     data->time_dst = h->ts;
-
                     if (!(roaring_bitmap_contains(data->bitmap, ip.ip_src.s_addr)))
                         roaring_bitmap_add(data->bitmap, ip.ip_src.s_addr);
                 }
@@ -527,55 +494,6 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 
 int main(int argc, char *argv[])
 {
-
-    //const char* rrdfile = "mydatabase.rrd";
-    //int rra_step = 300;  // ogni quanto dare il valore, 5 minuti 
-    //unsigned long start_time = 1621314000;  // Esempio di tempo di inizio (Unix timestamp)
-    //unsigned long rrd_argc = 3;
-    //const char** rrd_argv = calloc(sizeof(char*),2);
-    //rrd_argv[0] = "DS:speed:GAUGE:500:0:300";
-    //rrd_argv[1] = "RRA:AVERAGE:0.5:1:120"; 
-    //rrd_argv[2] = "RRA:AVERAGE:0.5:12:96"; 
-
-    //// Creazione del file RRD
-    //int ret = rrd_create_r(rrdfile, rra_step, start_time, rrd_argc, rrd_argv);
-    //if (ret != 0) {
-    //    printf("Errore CREATE\n");
-    //    rrd_clear_error();
-    //    return 1;
-    //}
-    //free(rrd_argv);
-
-    //rrd_argv = calloc(sizeof(char*),1);
-    //rrd_argv[0] = "N:3000";
-    //const char* template = "speed:distance";
-    //unsigned long arg = 1;
-    //ret = rrd_updatex_r(rrdfile, template, 0, arg, rrd_argv);
-    //if (ret != 0) {
-    //    printf("Errore UPDATE\n");
-    //    rrd_clear_error();
-    //    return 1;
-    //}
-   
-    //// Aggiunta dei dati di una data source (DS)
-    //ret = rrd_add_ds(rrdfile, ds_name, "GAUGE", rra_step, 0, 100, &error);
-    //if (ret != 0) {
-    //    printf("Errore durante l'aggiunta della data source: %s\n", error);
-    //    rrd_clear_error();
-    //    return 1;
-    //}
-
-    //// Aggiunta di una Round Robin Archive (RRA)
-    //ret = rrd_add_rar(rrdfile, rra_cf, 0.5, 1, 4032, &error);
-    //if (ret != 0) {
-    //    printf("Errore durante l'aggiunta della Round Robin Archive: %s\n", error);
-    //    rrd_clear_error();
-    //    return 1;
-    //}
-
-    //printf("File RRD creato con successo: %s\n", rrdfile);
-    //return 0;
-
     char *device = NULL;
     u_char c;
     char errbuf[PCAP_ERRBUF_SIZE];
@@ -630,40 +548,11 @@ int main(int argc, char *argv[])
     signal(SIGTERM, sigproc);
     signal(SIGALRM, my_sigalarm);
     alarm(ALARM_SLEEP);
-
     pcap_loop(pd, -1, dummyProcesssPacket, NULL);
     pcap_close(pd);
     alarm(0);
-
-    // exit
     roaring_bitmap_free(bitmap_BH);
     hashmap_iterate(hash_BH, free_hashmap, NULL);
     hashmap_free(hash_BH);
     return (0);
-
-
-
-    /*
-    2 Grafici per blackhole 
-    uno per i pacchetti in arrivo
-    uno con ogni possibile scanner (host che ci parla) e quanti pacchetti mandano di colori diversi
-
-    si crea un db per black hole, 
-    ogni 5 secondi si aggiorna, per ogni black hole si mantengono le 
-    rrdtool create first.rrd --step=1 DS:speed:GAUGE:10:0:1000 RRA:AVERAGE:0.5:1:360
-    rrdtool update first.rrd N:" + str(random.randint(0, 1000)
-    rrdtool graph my.png --start end-6m DEF:data=first.rrd:speed:AVERAGE LINE:dat  a#ff0000:'speed' && open my.png
-    
-    ogni minuto si stampa
- 
-    una cartella per blackhole
-    "rrdtool create "ip".rrd --step=1 DS:speed:GAUGE:10:0:10000000 RRA:AVERAGE:0.5:1:60"
-
-
-    PROBLEMA SE UNO ERA BLACK HOLE E POI SMETTE CON I DB
-
-    //per stampare ad un ora dal tempo del pc 
-    rrdtool graph my.png --start end-1h DEF:data=first.rrd:speed:AVERAGE LINE:data#ff0000:'speed' && open my.png
-
-    */
 }

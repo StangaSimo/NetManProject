@@ -3,3 +3,5 @@ prova
 src/pcount.c
 .vscode
 .DS_Store
+rrd_bin/graph/*
+rrd_bin/db/*
