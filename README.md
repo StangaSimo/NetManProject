@@ -2,14 +2,10 @@
 NetWork Management Project è un tool per cercare dei possibile Black Holes in una rete e tenere traccia degli host con cui questi comunicano.
 
 ## Requisites
-/////////Linux:
+Linux:
 ```
 sudo apt-get install libpcap-dev libncurses5-dev librrd-dev
 ```
-////////Mac with Brew: 
-////////```
-////////brew install libcap rrdtool 
-////////```
 
 ## Example
 ```
@@ -17,7 +13,7 @@ make
 sudo ./nmp -i NetworkAdapterName
 ```
 
-## How it work
+## How it works
 Il programma utilizza la libreria pcap, prende i pacchetti dalla scheda di rete data in input. 
 Analizzando solo i pacchetti TCP, tramite una HashMap teniamo traccia di tutti gli host che hanno traffico rx o tx.
 
