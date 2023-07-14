@@ -31,7 +31,7 @@
 
 #define ALARM_SLEEP 1
 #define GRAPH_SLEEP 5
-#define OPTIMIZE_SLEEP 600 
+#define OPTIMIZE_SLEEP 6
 
 #define DEFAULT_SNAPLEN 256
 #define hash_DIM 256
@@ -40,9 +40,6 @@
 #define GREEN "\x1b[32m"
 #define YELLOW "\x1b[33m"
 #define NORMAL "\x1b[m"
-
-
-//#define RRD_FLAGS_LOCKING_MODE_DEFAULT (0 << 7)
 
 struct sockaddr_in broadcastIP;
 struct sockaddr_in allbroadcastIP;
@@ -70,9 +67,6 @@ struct pcap_stat pcapStats;
 roaring_bitmap_t *bitmap_BH;
 hashmap *hash_BH;
 
-// https://github.com/RoaringBitmap/CRoaring
-// https://github.com/Mashpoe/c-hashmap#proper-usage-of-keys
-
 /*************************************************/
 
 char *__intoa(unsigned int addr, char *buf, u_short bufLen)
@@ -99,9 +93,7 @@ char *__intoa(unsigned int addr, char *buf, u_short bufLen)
         addr >>= 8;
     } while (--n > 0);
 
-    /* Convert the string to lowercase */
-    retStr = (char *)(cp + 1);
-
+    retStr = (char *)(cp + 1); // to lower case
     return (retStr);
 }
 
@@ -133,15 +125,6 @@ void sigproc(int sig)
 
 /*************************************************/
 
-
-bool print_bh_src(uint32_t value, void *parap)
-{
-    printf("ip: %s\n", intoa(ntohl(value)));
-    return true;
-}
-
-/*************************************************/
-
 int min(time_t a, time_t b)
 {
     if (a < b)
@@ -150,9 +133,10 @@ int min(time_t a, time_t b)
 }
 
 /*************************************************/
+/*free the hashmap entry and the bitmap*/
 
 void free_entry(struct timeval time_dst, struct timeval time_src, void *key, DATA *data)
-{
+{  
     struct timeval time;
     gettimeofday(&time, NULL);
     if (min(time.tv_sec - time_dst.tv_sec, time.tv_sec - time_src.tv_sec) > 100)
@@ -171,14 +155,14 @@ void print_line_table(int c) {
     printf("|");
     switch (c)
     {
-    case 0:
-        printf("%s", RED);
-        break;
-    case 1:
-        printf("%s", YELLOW);
-    case 2:
-        printf("%s", GREEN);
-        break;
+        case 0:
+            printf("%s", RED);
+            break;
+        case 1:
+            printf("%s", YELLOW);
+        case 2:
+            printf("%s", GREEN);
+            break;
     }
     printf("⬤ ");
     printf("%s", NORMAL);
@@ -193,7 +177,6 @@ bool iter(uint32_t value, void* p)
     char command[1000];
     sprintf(command, "rrdtool graph rrd_bin/graph/%s.png -w 1920 -h 1080 -D --start end-120s DEF:da1=%s.rrd:speed:AVERAGE LINE:da1#ff0000:'1' ", intoa(ntohl(value)), rrdfile);
     system(command);
-    printf("creo graf %s\n", intoa(ntohl(value)));
     return true; 
 }
 
@@ -211,7 +194,6 @@ void rd_create(in_addr_t ip)
     const char** rrd_argv = calloc(sizeof(char*),2);
     rrd_argv[0] = "DS:speed:GAUGE:10:0:1000000";
     rrd_argv[1] = "RRA:AVERAGE:0.5:1:60";
-
     int ret = rrd_create_r(rrdfile, rra_step, start_time, rrd_argc, rrd_argv);
     if (ret != 0) {
         printf("Errore CREATE\n");
@@ -233,9 +215,7 @@ long rd_update(in_addr_t ip, long p,long base)
     const char** rrd_argv = calloc(sizeof(char*),1);
     sprintf(arg,"N:%ld",res);
     rrd_argv[0] = arg;
-
-    // Creazione del file RRD
-    int ret = rrd_update_r(rrdfile,NULL,rrd_argc, rrd_argv);
+    int ret = rrd_update_r(rrdfile,NULL,rrd_argc, rrd_argv); //Creazione del file RRD
     if (ret != 0) {
         printf("Errore UPDATE\n");
         rrd_clear_error();
@@ -254,18 +234,15 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 
     if (!(data->src && !data->dst))
     {
-        if ((delta==0 && data->tx_packet==0 && data->rx_packet>10)||delta > 5) //5 second?
+        if ((delta==0 && data->tx_packet==0 && data->rx_packet>10)||delta > 5) //5 second?  //Black hole
         {
-            //Black hole
             print_line_table(0);
-            //aggiornamento valori packet in
             data->rx_packet_base = rd_update(*(in_addr_t *)key, data->rx_packet, data->rx_packet_base);
         }
         else
         {
-            if (1)//(delta > 2)
+            if (1) //(delta > 2) //probably blackhole
             {
-                // Possible BlackHole
                 print_line_table(1);
                 if (roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key))
                     data->rx_packet_base = rd_update(*(in_addr_t *)key, data->rx_packet, data->rx_packet_base);
@@ -276,19 +253,17 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
                     rd_create(*(in_addr_t *)key);
                 }
             }
-            else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5))
+            else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5)) // Back to send Packets
             {
-                // Back to send Packets
-                print_line_table(2);
-                //printf("Back to Working: %s\n", intoa(ntohl(*(in_addr_t *)key)));
+
                 print_line_table(2);
                 roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
                 char rrdfile[100];
                 sprintf(rrdfile, "rrd_bin/db/%s", intoa(ntohl(*(in_addr_t *)key)));
                 remove(rrdfile);
             }
-            else
-                print_line_table(2);
+            else //normal Host 
+                print_line_table(2); 
         }
         time_t d_time = data->time_dst.tv_sec + 7200;
         time_t s_time = data->time_src.tv_sec + 7200;
@@ -297,12 +272,14 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
         printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
         printf(" %lld.%lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
         printf(" %lld.%lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
-        printf("     %ld:%-6ld  |\n", data->rx_packet, data->tx_packet);
+        printf(" %ld:%-10ld |\n", data->rx_packet, data->tx_packet);
     }
 
+    //TODO: right? 
+    //
     // free host after 300 seconds of inactivity
-    if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
-        free_entry(data->time_dst, data->time_src, key, data);
+    //if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
+    //    free_entry(data->time_dst, data->time_src, key, data);
 }
 
 /*************************************************/
@@ -312,23 +289,20 @@ int cont = 0;
 void print_stats()
 {
     printf("\n\n\n\nITER: %d\n", c++);
-    printf("------------------------------------------------------\n");
+    printf("---------------------------------------------------------------------\n");
     printf("|  |        IP        | Last RX Time | Last TX Time | Packets RX:TX |  \n");
     hashmap_iterate(hash_BH, print_hash_entry, NULL);
-    printf("------------------------------------------------------\n");
+    printf("---------------------------------------------------------------------\n");
 
-    // bit map optimization after 600 sec
     cont++;
-    if ((cont % GRAPH_SLEEP) == 0)
-    {
-        rd_graph();
-        // stampare i grafici
-    }
+    if ((cont % GRAPH_SLEEP) == 0) { rd_graph(); }
+    
     if (cont >= OPTIMIZE_SLEEP)
     {
         hashmap_iterate(hash_BH, optimize_entry, NULL);
         cont = 0;
     }
+
     roaring_bitmap_run_optimize(bitmap_BH);
 }
 
@@ -341,7 +315,6 @@ void free_hashmap(void *key, size_t ksize, uintptr_t d, void *usr)
     roaring_bitmap_free(data->bitmap);
     free(data);
 }
-
 
 /*************************************************/
 
@@ -359,15 +332,15 @@ char *proto2str(u_short proto)
     static char protoName[8];
     switch (proto)
     {
-    case IPPROTO_TCP:
-        return ("TCP");
-    case IPPROTO_UDP:
-        return ("UDP");
-    case IPPROTO_ICMP:
-        return ("ICMP");
-    default:
-        snprintf(protoName, sizeof(protoName), "%d", proto);
-        return (protoName);
+        case IPPROTO_TCP:
+            return ("TCP");
+        case IPPROTO_UDP:
+            return ("UDP");
+        case IPPROTO_ICMP:
+            return ("ICMP");
+        default:
+            snprintf(protoName, sizeof(protoName), "%d", proto);
+            return (protoName);
     }
 }
 
@@ -402,7 +375,7 @@ void getBroadCast(char *device)
     inet_pton(AF_INET, ip, &myIP.sin_addr);
     broadcastIP.sin_addr.s_addr = su->sin_addr.s_addr | ~(sa->sin_addr.s_addr);
     inet_ntop(AF_INET, &(broadcastIP.sin_addr), broad, INET_ADDRSTRLEN);
-    printf("\n\nSubnetMask:%s \nLocalIP:%s \nBroadcastIP: %s\n", subnet_mask, ip, broad);
+    printf("\nSubnetMask:%s \nLocalIP:%s \nBroadcastIP: %s\n", subnet_mask, ip, broad);
     freeifaddrs(ifaddr);
 }
 
@@ -421,71 +394,63 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
     if (eth_type == 0x0800)
     {
         if (ip.ip_p == IPPROTO_TCP &&
-            (ntohl(ip.ip_dst.s_addr) != ntohl(broadcastIP.sin_addr.s_addr)) &&
-            (ntohl(ip.ip_dst.s_addr) != ntohl(intraIP.sin_addr.s_addr)) &&
-            //(ntohl(ip.ip_dst.s_addr) != ntohl(myIP.sin_addr.s_addr)) &&
-            //(ntohl(ip.ip_src.s_addr) != ntohl(myIP.sin_addr.s_addr)) &&
-            (ntohl(ip.ip_dst.s_addr) != ntohl(allbroadcastIP.sin_addr.s_addr)) &&
-            (ntohl(ip.ip_dst.s_addr) < ntohl(minMultiIP.sin_addr.s_addr) || ntohl(ip.ip_dst.s_addr) > ntohl(maxMultiIP.sin_addr.s_addr)))
-        {
-                // time_dst = tempo ultimo pacchetto rx
-                // time_src = tempo ultimo pacchetto tx,
-                // in caso l'host abbia solo traffico rx,
-                // time_src = tempo primo pacchetto rx
+                (ntohl(ip.ip_dst.s_addr) != ntohl(broadcastIP.sin_addr.s_addr)) &&
+                (ntohl(ip.ip_dst.s_addr) != ntohl(intraIP.sin_addr.s_addr)) &&
+                //(ntohl(ip.ip_dst.s_addr) != ntohl(myIP.sin_addr.s_addr)) &&
+                //(ntohl(ip.ip_src.s_addr) != ntohl(myIP.sin_addr.s_addr)) &&
+                (ntohl(ip.ip_dst.s_addr) != ntohl(allbroadcastIP.sin_addr.s_addr)) &&
+                (ntohl(ip.ip_dst.s_addr) < ntohl(minMultiIP.sin_addr.s_addr) || ntohl(ip.ip_dst.s_addr) > ntohl(maxMultiIP.sin_addr.s_addr)))
+        {   
+            //time_dst = last rx packet time, time_src = last tx packet time, if host have only rx traffics, time_src = last rx packet time 
+            uintptr_t r;
+            if (hashmap_get(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), &r)) // src ip present in the hashmap 
+            {
+                DATA *data = (DATA *)r;
+                data->tx_packet++;
+                if (!(data->src)) //host was only dst
+                    data->src = 1;
+                data->time_src = h->ts; //update last rx time packet
+            }
+            else // src ip not present in the hashmap
+            {
+                DATA *src_data;
+                src_data = malloc(sizeof(DATA));
+                src_data->src = 1;
+                src_data->dst = 0;
+                src_data->rx_packet = 0;
+                src_data->tx_packet = 1;
+                src_data->time_src = h->ts;
+                src_data->bitmap = roaring_bitmap_create();
+                in_addr_t *s_addr = malloc(sizeof(in_addr_t));
+                memcpy(s_addr, &ip.ip_src.s_addr, sizeof(in_addr_t));
+                hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)src_data);
+            }
 
-                uintptr_t r;
-                if (hashmap_get(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), &r))
-                {
-                    // SRC present
-                    DATA *data = (DATA *)r;
-                    data->tx_packet++;
-                    if (!(data->src)) // host was only dst
-                        data->src = 1;
-                    data->time_src = h->ts; // update last rx time packet
-                }
-                else
-                {
-                    // SRC not present
-                    DATA *src_data;
-                    src_data = malloc(sizeof(DATA));
-                    src_data->src = 1;
-                    src_data->dst = 0;
-                    src_data->rx_packet = 0;
-                    src_data->tx_packet = 1;
-                    src_data->time_src = h->ts;
-                    src_data->bitmap = roaring_bitmap_create();
-                    in_addr_t *s_addr = malloc(sizeof(in_addr_t));
-                    memcpy(s_addr, &ip.ip_src.s_addr, sizeof(in_addr_t));
-                    hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)src_data);
-                }
-
-                if (hashmap_get(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_dst.s_addr), &r))
-                {
-                    // DST present
-                    DATA *data = (DATA *)r;
-                    data->rx_packet++;
-                    if (!(data->dst))
-                        data->dst = 1; // l'host was only src
-                    data->time_dst = h->ts;
-                    if (!(roaring_bitmap_contains(data->bitmap, ip.ip_src.s_addr)))
-                        roaring_bitmap_add(data->bitmap, ip.ip_src.s_addr);
-                }
-                else
-                {
-                    // DST not present
-                    DATA *dst_data = malloc(sizeof(DATA));
-                    dst_data->dst = 1;
-                    dst_data->src = 0;
-                    dst_data->rx_packet = 1;
-                    dst_data->tx_packet = 0;
-                    dst_data->time_src = h->ts;
-                    dst_data->time_dst = h->ts;
-                    dst_data->bitmap = roaring_bitmap_create();
-                    roaring_bitmap_add(dst_data->bitmap, ip.ip_src.s_addr);
-                    in_addr_t *s_addr = malloc(sizeof(in_addr_t));
-                    memcpy(s_addr, &ip.ip_dst.s_addr, sizeof(in_addr_t));
-                    hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)dst_data);
-                }
+            if (hashmap_get(hash_BH, &ip.ip_dst.s_addr, sizeof(ip.ip_dst.s_addr), &r)) // DST not present in the hashmap
+            {
+                DATA *data = (DATA *)r;
+                data->rx_packet++;
+                if (!(data->dst)) // was only src
+                    data->dst = 1; 
+                data->time_dst = h->ts;
+                if (!(roaring_bitmap_contains(data->bitmap, ip.ip_src.s_addr)))
+                    roaring_bitmap_add(data->bitmap, ip.ip_src.s_addr);
+            }
+            else // DST not present
+            {
+                DATA *dst_data = malloc(sizeof(DATA));
+                dst_data->dst = 1;
+                dst_data->src = 0;
+                dst_data->rx_packet = 1;
+                dst_data->tx_packet = 0;
+                dst_data->time_src = h->ts;
+                dst_data->time_dst = h->ts;
+                dst_data->bitmap = roaring_bitmap_create();
+                roaring_bitmap_add(dst_data->bitmap, ip.ip_src.s_addr);
+                in_addr_t *s_addr = malloc(sizeof(in_addr_t));
+                memcpy(s_addr, &ip.ip_dst.s_addr, sizeof(in_addr_t));
+                hashmap_set(hash_BH, s_addr, sizeof(in_addr_t), (uintptr_t)(void *)dst_data);
+            }
         }
     }
 }
@@ -498,10 +463,7 @@ int main(int argc, char *argv[])
     u_char c;
     char errbuf[PCAP_ERRBUF_SIZE];
     int promisc, snaplen = DEFAULT_SNAPLEN;
-
-    // bitmap create
     bitmap_BH = roaring_bitmap_create();
-    // hash create
     hash_BH = hashmap_create();
 
     while ((c = getopt(argc, argv, "hi:l:v:f:")) != '?')
@@ -510,9 +472,9 @@ int main(int argc, char *argv[])
             break;
         switch (c)
         {
-        case 'i':
-            device = strdup(optarg);
-            break;
+            case 'i':
+                device = strdup(optarg);
+                break;
         }
     }
 
@@ -529,7 +491,6 @@ int main(int argc, char *argv[])
     }
 
     printf("Capturing from %s\n", device);
-
     getBroadCast(device);
     inet_pton(AF_INET, "224.0.0.0", &minMultiIP.sin_addr);
     inet_pton(AF_INET, "239.255.255.255", &maxMultiIP.sin_addr);
@@ -537,7 +498,6 @@ int main(int argc, char *argv[])
     inet_pton(AF_INET, "192.168.222.11", &intraIP.sin_addr);
 
     promisc = 1;
-
     if ((pd = pcap_open_live(device, snaplen, promisc, 500, errbuf)) == NULL)
     {
         printf("pcap_open_live: %s\n", errbuf);
