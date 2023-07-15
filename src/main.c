@@ -188,12 +188,12 @@ void rd_create(in_addr_t ip)
 {
     char rrdfile[100];
     sprintf(rrdfile,"rrd_bin/db/%s.rrd",intoa(ntohl(ip)));
-    int rra_step = 1;  // ogni quanto dare il valore
+    int rra_step = 1;
     unsigned long start_time = 1621314000;
     unsigned long rrd_argc = 2;
     const char** rrd_argv = calloc(sizeof(char*),2);
     rrd_argv[0] = "DS:speed:GAUGE:10:0:1000000";
-    rrd_argv[1] = "RRA:AVERAGE:0.5:1:60";
+    rrd_argv[1] = "RRA:AVERAGE:0.5:1:86400";
     int ret = rrd_create_r(rrdfile, rra_step, start_time, rrd_argc, rrd_argv);
     if (ret != 0) {
         printf("Errore CREATE\n");
@@ -215,7 +215,7 @@ long rd_update(in_addr_t ip, long p,long base)
     const char** rrd_argv = calloc(sizeof(char*),1);
     sprintf(arg,"N:%ld",res);
     rrd_argv[0] = arg;
-    int ret = rrd_update_r(rrdfile,NULL,rrd_argc, rrd_argv); //Creazione del file RRD
+    int ret = rrd_update_r(rrdfile,NULL,rrd_argc, rrd_argv); 
     if (ret != 0) {
         printf("Errore UPDATE\n");
         rrd_clear_error();
@@ -260,6 +260,8 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
                 roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
                 char rrdfile[100];
                 sprintf(rrdfile, "rrd_bin/db/%s", intoa(ntohl(*(in_addr_t *)key)));
+                remove(rrdfile);
+                sprintf(rrdfile, "rrd_bin/graph/%s", intoa(ntohl(*(in_addr_t *)key)));
                 remove(rrdfile);
             }
             else //normal Host 
