@@ -241,7 +241,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
         }
         else
         {
-            if (1) //(delta > 2) //probably blackhole
+            if (delta > 2) //probably blackhole
             {
                 print_line_table(1);
                 if (roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key))
@@ -267,14 +267,14 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
             else //normal Host 
                 print_line_table(2); 
         }
-        time_t d_time = data->time_dst.tv_sec + 7200;
-        time_t s_time = data->time_src.tv_sec + 7200;
-        struct tm *dst_time = gmtime(&d_time);
-        struct tm *src_time = gmtime(&s_time);
+        time_t d_time = data->time_dst.tv_sec;
+        time_t s_time = data->time_src.tv_sec;
+        struct tm *dst_time = localtime(&d_time);
+        struct tm *src_time = localtime(&s_time);
         printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
-        printf(" %lld.%lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
-        printf(" %lld.%lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
-        printf(" %ld:%-10ld |\n", data->rx_packet, data->tx_packet);
+        printf(" %2lld.%2lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
+        printf(" %2lld.%2lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
+        printf(" %6ld:%-6ld |\n", data->rx_packet, data->tx_packet);
     }
 
     //TODO: right? 
