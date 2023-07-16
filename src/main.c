@@ -232,7 +232,6 @@ long rd_update(in_addr_t ip, long p,long base)
     char arg[100];
     const char** rrd_argv = calloc(sizeof(char*),1);
     sprintf(arg,"N:%ld",res);
-    printf("%s %s\n",rrdfile,arg);
     rrd_argv[0] = arg;
     int ret = rrd_update_r(rrdfile,NULL,rrd_argc, rrd_argv); 
     if (ret != 0) {
@@ -482,6 +481,10 @@ int main(int argc, char *argv[])
     int promisc, snaplen = DEFAULT_SNAPLEN;
     bitmap_BH = roaring_bitmap_create();
     hash_BH = hashmap_create();
+
+    system("mkdir rrd_bin");
+    system("mkdir rrd_bin/db");
+    system("mkdir rrd_bin/graph");
 
     while ((c = getopt(argc, argv, "hi:l:v:f:")) != '?')
     {
