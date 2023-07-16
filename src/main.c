@@ -139,7 +139,7 @@ void free_entry(struct timeval time_dst, struct timeval time_src, void *key, DAT
 {  
     struct timeval time;
     gettimeofday(&time, NULL);
-    if (min(time.tv_sec - time_dst.tv_sec, time.tv_sec - time_src.tv_sec) > 100)
+    if (min(time.tv_sec - time_dst.tv_sec, time.tv_sec - time_src.tv_sec) > 300)
     {   
         uintptr_t r;
         roaring_bitmap_free(data->bitmap);
@@ -170,17 +170,35 @@ void print_line_table(int c) {
 
 /*************************************************/
 
+char* ips;
+
+bool comment(uint32_t value, void * str){
+    char s[500];
+    sprintf(s, " %s ", intoa(ntohl(value)));
+    strcat(ips,s); 
+    return true;
+}
+
 bool iter(uint32_t value, void* p)
 {
-    char rrdfile[100];
+    char rrdfile[200];
+    char command[2200];
+    uintptr_t r;
+    ips = malloc(2000*sizeof(char));
+    strcpy(ips,"");
     sprintf(rrdfile, "rrd_bin/db/%s", intoa(ntohl(value)));
-    char command[1000];
-    sprintf(command, "rrdtool graph rrd_bin/graph/%s.png -w 1920 -h 1080 -D --start end-120s DEF:da1=%s.rrd:speed:AVERAGE LINE:da1#ff0000:'1' ", intoa(ntohl(value)), rrdfile);
+    if (hashmap_get(hash_BH, &value, sizeof(value), &r)) 
+    {
+        DATA *data = (DATA *)r;            
+        roaring_iterate(data->bitmap, comment, NULL);
+    }  
+    sprintf(command, "rrdtool graph rrd_bin/graph/%s.png -w 1920 -h 1080 -D --start end-120s DEF:da1=%s.rrd:speed:AVERAGE LINE:da1#ff0000:'1' COMMENT:\"il blackhole è stato contattato da%s\"", intoa(ntohl(value)),rrdfile, ips);
     system(command);
+    free(ips);
     return true; 
 }
 
-void rd_graph() { roaring_iterate(bitmap_BH, iter, NULL); }
+void rd_graph() {roaring_iterate(bitmap_BH, iter, NULL); }
 
 /*************************************************/
 
@@ -196,7 +214,7 @@ void rd_create(in_addr_t ip)
     rrd_argv[1] = "RRA:AVERAGE:0.5:1:86400";
     int ret = rrd_create_r(rrdfile, rra_step, start_time, rrd_argc, rrd_argv);
     if (ret != 0) {
-        printf("Errore CREATE\n");
+        printf("Errore CREATE: %s \n", rrd_get_error());
         rrd_clear_error();
         return;
     }
@@ -214,10 +232,11 @@ long rd_update(in_addr_t ip, long p,long base)
     char arg[100];
     const char** rrd_argv = calloc(sizeof(char*),1);
     sprintf(arg,"N:%ld",res);
+    printf("%s %s\n",rrdfile,arg);
     rrd_argv[0] = arg;
     int ret = rrd_update_r(rrdfile,NULL,rrd_argc, rrd_argv); 
     if (ret != 0) {
-        printf("Errore UPDATE\n");
+        printf("Errore UPDATE: %s \n", rrd_get_error());
         rrd_clear_error();
         return 0;
     }
@@ -239,51 +258,47 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
             print_line_table(0);
             data->rx_packet_base = rd_update(*(in_addr_t *)key, data->rx_packet, data->rx_packet_base);
         }
-        else
+        else if (1) //(delta > 2) //probably blackhole
         {
-            if (delta > 2) //probably blackhole
+            print_line_table(1);
+            if (roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key))
+                data->rx_packet_base = rd_update(*(in_addr_t *)key, data->rx_packet, data->rx_packet_base);
+            else
             {
-                print_line_table(1);
-                if (roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key))
-                    data->rx_packet_base = rd_update(*(in_addr_t *)key, data->rx_packet, data->rx_packet_base);
-                else
-                {
-                    roaring_bitmap_add(bitmap_BH, *(in_addr_t *)key);
-                    data->rx_packet_base = data->rx_packet;
-                    rd_create(*(in_addr_t *)key);
-                }
+                roaring_bitmap_add(bitmap_BH, *(in_addr_t *)key);
+                data->rx_packet_base = data->rx_packet;
+                rd_create(*(in_addr_t *)key);
+                printf("creato\n");
             }
-            else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5)) // Back to send Packets
-            {
-
-                print_line_table(2);
-                roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
-                char rrdfile[100];
-                sprintf(rrdfile, "rrd_bin/db/%s", intoa(ntohl(*(in_addr_t *)key)));
-                remove(rrdfile);
-                sprintf(rrdfile, "rrd_bin/graph/%s", intoa(ntohl(*(in_addr_t *)key)));
-                remove(rrdfile);
-            }
-            else //normal Host 
-                print_line_table(2); 
         }
-        time_t d_time = data->time_dst.tv_sec;
-        time_t s_time = data->time_src.tv_sec;
-        struct tm *dst_time = localtime(&d_time);
-        struct tm *src_time = localtime(&s_time);
-        printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
-        printf(" %2lld.%2lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
-        printf(" %2lld.%2lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
-        printf(" %6ld:%-6ld |\n", data->rx_packet, data->tx_packet);
+        else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5)) // Back to send Packets
+        {
+
+            print_line_table(2);
+            roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
+            char rrdfile[100];
+            sprintf(rrdfile, "rrd_bin/db/%s", intoa(ntohl(*(in_addr_t *)key)));
+            remove(rrdfile);
+            sprintf(rrdfile, "rrd_bin/graph/%s", intoa(ntohl(*(in_addr_t *)key)));
+            remove(rrdfile);
+        }
+        else //normal Host 
+            print_line_table(2); 
     }
+    time_t d_time = data->time_dst.tv_sec;
+    time_t s_time = data->time_src.tv_sec;
+    struct tm *dst_time = localtime(&d_time);
+    struct tm *src_time = localtime(&s_time);
+    printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
+    printf(" %2lld.%2lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
+    printf(" %2lld.%2lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
+    printf(" %6ld:%-6ld |\n", data->rx_packet, data->tx_packet);
 
-    //TODO: right? 
-    //
-    // free host after 300 seconds of inactivity
-    //if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
-    //    free_entry(data->time_dst, data->time_src, key, data);
+    if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
+    {
+        free_entry(data->time_dst, data->time_src, key, data);
+    }
 }
-
 /*************************************************/
 
 int c = 0;
