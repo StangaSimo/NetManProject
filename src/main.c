@@ -257,7 +257,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
             print_line_table(0);
             data->rx_packet_base = rd_update(*(in_addr_t *)key, data->rx_packet, data->rx_packet_base);
         }
-        else if (1) //(delta > 2) //probably blackhole
+        else if (delta > 2) //probably blackhole
         {
             print_line_table(1);
             if (roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key))
