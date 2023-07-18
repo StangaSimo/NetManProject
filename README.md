@@ -35,3 +35,7 @@ Ogni 5 secondi aggiorneremo un grafico con la media dei valori contenuti nell'ar
 Il programma ogni 10 minuti fa un ciclo di ottimizzazione delle compressed bitmap, e elimina gli host che non sono più attivi da 1 ora.
 
 In caso di uscita, viene avviata la procedura per la free di tutte gli elementi nella hashmap, comprese le Bitmap.  
+
+Per testare l'applicazione abbiamo creato uno script in python che consente di bloccare i pacchetti in uscita dal proprio device creando così un blackhole locale. 
+Quando arriverà un pacchetto viene creato il file rrd, aggiunto alla bitmap_BH l'indirizzo IP associato e creato un grafico che si aggiornerà ogni 5 secondi. Se riceve il primo pacchetto nei primi 20 secondi in cui ne manda all'inizio viene segnalato visualizzando a schermo il colore giallo, se continua a ricevere pacchetti allora verrà visualizzato il colore rosso. 
+Se riprende a funzionare verrà aggiornato lo stato in verde e sarà rimosso dalla bitmap_BH.
