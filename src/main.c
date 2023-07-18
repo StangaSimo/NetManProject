@@ -160,6 +160,7 @@ void print_line_table(int c) {
             break;
         case 1:
             printf("%s", YELLOW);
+            break;
         case 2:
             printf("%s", GREEN);
             break;
@@ -252,12 +253,22 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 
     if (!(data->src && !data->dst))
     {
-        if ((delta==0 && data->tx_packet==0 && data->rx_packet>10)||delta > 5) //5 second?  //Black hole
+        if ((delta==0 && data->tx_packet==0 && data->rx_packet>10)||delta > 20) //5 second?  //Black hole
         {
             print_line_table(0);
-            data->rx_packet_base = rd_update(*(in_addr_t *)key, data->rx_packet, data->rx_packet_base);
+            if (roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key))
+                data->rx_packet_base = rd_update(*(in_addr_t *)key, data->rx_packet, data->rx_packet_base);
+            else
+            {
+                roaring_bitmap_add(bitmap_BH, *(in_addr_t *)key);
+                data->rx_packet_base = data->rx_packet;
+                rd_create(*(in_addr_t *)key);
+                printf("creato\n");
+            }
+            
+           // data->rx_packet_base = rd_update(*(in_addr_t *)key, data->rx_packet, data->rx_packet_base);
         }
-        else if (1) //(delta > 2) //probably blackhole
+        else if (delta > 10) //probably blackhole
         {
             print_line_table(1);
             if (roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key))
@@ -267,7 +278,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
                 roaring_bitmap_add(bitmap_BH, *(in_addr_t *)key);
                 data->rx_packet_base = data->rx_packet;
                 rd_create(*(in_addr_t *)key);
-                printf("creato\n");
+                printf("| creato\n");
             }
         }
         else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5)) // Back to send Packets
