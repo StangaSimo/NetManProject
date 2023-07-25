@@ -414,28 +414,25 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
 {
     struct ether_header ehdr;
     struct ip ip;
-
-    //check the length of the header 
-    if (h->caplen < (sizeof(struct ether_header) + sizeof(struct ip)))
-        return;
+    struct tcphdr tcp;
 
     memcpy(&ehdr, p, sizeof(struct ether_header));
+    memcpy(&ip, p + sizeof(ehdr), sizeof(struct ip));
+
     u_short eth_type = ntohs(ehdr.ether_type);
+    uint32_t dst_ip = ntohl(ip.ip_dst.s_addr);
 
     if (eth_type == 0x0800)
     {
-        memcpy(&ip, p + sizeof(ehdr), sizeof(struct ip));
-        uint32_t dst_ip = ntohl(ip.ip_dst.s_addr);
-
         if (ip.ip_p == IPPROTO_TCP &&
                 (dst_ip != broadcastIP) &&
-                (dst_ip != intraIP) &&
+                (dst_ip != ntohl(intraIP.sin_addr.s_addr)) &&
 
                 //(ntohl(ip.ip_dst.s_addr) != ntohl(myIP.sin_addr.s_addr)) &&
                 //(ntohl(ip.ip_src.s_addr) != ntohl(myIP.sin_addr.s_addr)) &&
 
-                (dst_ip != allbroadcastIP) &&
-                (dst_ip < minMultiIP || dst_ip > maxMultiIP))
+                (dst_ip != ntohl(allbroadcastIP.sin_addr.s_addr)) &&
+                (dst_ip < ntohl(minMultiIP.sin_addr.s_addr) || dst_ip > ntohl(maxMultiIP.sin_addr.s_addr)))
         {   
             //time_dst = last rx packet time, time_src = last tx packet time, if host have only rx traffics, time_src = last rx packet time 
             uintptr_t r;
@@ -543,10 +540,12 @@ int main(int argc, char *argv[])
     inet_pton(AF_INET, "255.255.255.255", &allbroadcastip.sin_addr);
     inet_pton(AF_INET, "192.168.222.11", &intraip.sin_addr);
 
-    allbroadcastIP = ntohl(allbroadcastip.sin_addr.s_addr);
-    minMultiIP = ntohl(minMultiip.sin_addr.s_addr);
-    maxMultiIP = ntohl(maxMultiip.sin_addr.s_addr);
-    intraIP = ntohl(intraip.sin_addr.s_addr);
+
+     allbroadcastIP=  allbroadcastip;
+     minMultiIP    =  minMultiip;
+     maxMultiIP    =  maxMultiip;
+     intraIP       =  intraip;
+
 
     promisc = 1;
     if ((pd = pcap_open_live(device, snaplen, promisc, 500, errbuf)) == NULL)
