@@ -253,7 +253,6 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
 {
     DATA *data = (DATA *)d;
     long delta = data->time_dst.tv_sec - data->time_src.tv_sec;
-
     if (!(data->src && !data->dst))
     {
         if ((delta==0 && data->tx_packet==0 && data->rx_packet>10)||delta > 20) //Black hole
@@ -284,7 +283,6 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
         }
         else if ((roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key) && delta < 5)) // Back to send Packets
         {
-
             print_line_table(2);
             roaring_bitmap_remove(bitmap_BH, *(in_addr_t *)key);
             char rrdfile[100];
@@ -293,22 +291,21 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
             sprintf(rrdfile, "rrd_bin/graph/%s", intoa(ntohl(*(in_addr_t *)key)));
             remove(rrdfile);
         }
-        else //normal Host 
+        else {//normal Host 
             print_line_table(2); 
+        }
+        time_t d_time = data->time_dst.tv_sec;
+        time_t s_time = data->time_src.tv_sec;
+        struct tm *dst_time = localtime(&d_time);
+        struct tm *src_time = localtime(&s_time);
+        printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
+        printf(" %2lld.%2lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
+        printf(" %2lld.%2lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
+        printf(" %6ld:%-6ld |\n", data->rx_packet, data->tx_packet);
     }
-    time_t d_time = data->time_dst.tv_sec;
-    time_t s_time = data->time_src.tv_sec;
-    struct tm *dst_time = localtime(&d_time);
-    struct tm *src_time = localtime(&s_time);
-    printf("| %-16s |", intoa(ntohl(*(__uint32_t *)key)));
-    printf(" %2lld.%2lld.%-6lld |",(long long)dst_time->tm_hour, (long long)dst_time->tm_min, (long long)dst_time->tm_sec);
-    printf(" %2lld.%2lld.%-6lld |",(long long)src_time->tm_hour, (long long)src_time->tm_min, (long long)src_time->tm_sec);
-    printf(" %6ld:%-6ld |\n", data->rx_packet, data->tx_packet);
 
     if (!(roaring_bitmap_contains(bitmap_BH, *(in_addr_t *)key)))
-    {
         free_entry(data->time_dst, data->time_src, key, data);
-    }
 }
 /*************************************************/
 
@@ -324,14 +321,12 @@ void print_stats()
 
     cont++;
     if ((cont % GRAPH_SLEEP) == 0) { rd_graph(); }
-    
     if (cont >= OPTIMIZE_SLEEP)
     {
         hashmap_iterate(hash_BH, optimize_entry, NULL);
         cont = 0;
     }
-
-    roaring_bitmap_run_optimize(bitmap_BH);
+    //roaring_bitmap_run_optimize(bitmap_BH);
 }
 
 /*************************************************/
@@ -411,16 +406,31 @@ void getBroadCast(char *device)
     freeifaddrs(ifaddr);
 }
 
+void f () {
+    int c =0;
+    for (int i=0; i<100; i++)
+        c++;
+    printf("finitociclo\n");
+}
 /*************************************************/
 
 void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u_char *p)
 {
     struct ether_header ehdr;
     struct ip ip;
+    struct tcphdr tcp_hdr;
 
     //check the length of the header 
-    if (h->caplen < (sizeof(struct ether_header) + sizeof(struct ip)))
-        return;
+    //printf("grandezza %u  somma %lu  = ether %lu + ip %lu + tcp %lu\n",h->caplen,(sizeof(struct ether_header)+sizeof(struct ip)+sizeof(struct tcphdr)), sizeof(struct ether_header),sizeof(struct ip),sizeof(struct tcphdr));
+    //printf("grandezza %u \n",h->caplen);
+    //u_int n = sizeof(struct ether_header);
+    //printf("n %u \n",n);
+    ////+sizeof(struct ip)+sizeof(struct tcphdr);
+    //printf("somma %lu \n",sizeof(struct ether_header)+sizeof(struct ip)+sizeof(struct tcphdr));
+    //if (h->caplen < (sizeof(struct ether_header) + sizeof(struct ip)))
+    //    return;
+
+    //f();
 
     memcpy(&ehdr, p, sizeof(struct ether_header));
     u_short eth_type = ntohs(ehdr.ether_type);
@@ -440,6 +450,10 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 (dst_ip != allbroadcastIP) &&
                 (dst_ip < minMultiIP || dst_ip > maxMultiIP))
         {   
+
+            //memcpy(&tcp_hdr, p + sizeof(ehdr) + sizeof(ip), sizeof(struct tcphdr));
+            //printf("grandezza %lu   src_p %hu   dst_p %hu\n",sizeof(struct tcphdr),tcp_hdr.th_dport, tcp_hdr.th_sport);
+
             //time_dst = last rx packet time, time_src = last tx packet time, if host have only rx traffics, time_src = last rx packet time 
             uintptr_t r;
             if (hashmap_get(hash_BH, &ip.ip_src.s_addr, sizeof(ip.ip_src.s_addr), &r)) // src ip present in the hashmap 
@@ -494,7 +508,6 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
         struct timeval now;
         gettimeofday(&now, NULL);
         if ((now.tv_sec - last_print.tv_sec) > 1){
-            printf("stampo\n");
             print_stats();
             gettimeofday(&last_print, NULL);
         }
