@@ -309,7 +309,7 @@ void print_hash_entry(void *key, size_t ksize, uintptr_t d, void *usr)
         printf("porte:\n");
         struct Result** susu = traverseTree(data->root);
         for (int i=0; i<total; i++) {
-            printf("ip: %s\n",intoa(susu[i]->ip));
+            printf("ip: %s\n",intoa(ntohl(susu[i]->ip)));
             roaring_iterate(susu[i]->ports, iter, NULL);
         }
 
