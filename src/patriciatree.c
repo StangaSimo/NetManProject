@@ -3,39 +3,40 @@
 #include <sys/types.h>
 #include "roaring.c"
 
-//char *__intoa(unsigned int addr, char *buf, u_short bufLen)
-//{
-//    char *cp, *retStr;
-//    u_int byte;
-//    int n;
-//    cp = &buf[bufLen];
-//    *--cp = '\0';
-//    n = 4;
-//    do
-//    {
-//        byte = addr & 0xff;
-//        *--cp = byte % 10 + '0';
-//        byte /= 10;
-//        if (byte > 0)
-//        {
-//            *--cp = byte % 10 + '0';
-//            byte /= 10;
-//            if (byte > 0)
-//                *--cp = byte + '0';
-//        }
-//        *--cp = '.';
-//        addr >>= 8;
-//    } while (--n > 0);
-//
-//    retStr = (char *)(cp + 1); // to lower case
-//    return (retStr);
-//}
-//
-//static char buf[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"];
-//char *intoa(unsigned int addr) { return (__intoa(addr, buf, sizeof(buf))); }
+/*char *__intoa(uint32_t addr, char *buf, u_short bufLen)
+{
+    char *cp, *retStr;
+    u_int byte;
+    int n;
+    cp = &buf[bufLen];
+    *--cp = '\0';
+    n = 4;
+    do
+    {
+        byte = addr & 0xff;
+        *--cp = byte % 10 + '0';
+        byte /= 10;
+        if (byte > 0)
+        {
+            *--cp = byte % 10 + '0';
+            byte /= 10;
+            if (byte > 0)
+                *--cp = byte + '0';
+        }
+        *--cp = '.';
+        addr >>= 8;
+    } while (--n > 0);
+
+
+    retStr = (char *)(cp + 1); // to lower case
+    return (retStr);
+}
+
+static char buf[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"];
+char *intoa(uint32_t addr) { return (__intoa(addr, buf, sizeof(buf))); }*/
 
 struct Result {
-    unsigned int ip;
+    uint32_t ip;
     roaring_bitmap_t *ports;
 };
 
@@ -60,7 +61,7 @@ struct Node* createNode() {
     return newNode;
 }
 
-void insert(struct Node* root, unsigned int ip) {
+void insert(struct Node* root, uint32_t ip) {
     struct Node* currentNode = root;
     for (int i = 31; i >= 0; i--) {
         int bit = (ip >> i) & 1;
@@ -80,7 +81,7 @@ void insert(struct Node* root, unsigned int ip) {
     total++;
 }
 
-roaring_bitmap_t* search(struct Node* root, unsigned int ip) {
+roaring_bitmap_t* search(struct Node* root, uint32_t ip) {
     struct Node* currentNode = root;
     for (int i = 31; i >= 0; i--) {
         int bit = (ip >> i) & 1;
@@ -136,7 +137,7 @@ bool iter(uint32_t value, void* p)
 }
 
 int z = 0;
-void traverse(struct Node* node, unsigned int ip, int level, struct Result** res) {
+void traverse(struct Node* node, uint32_t ip, int level, struct Result** res) {
     if (node == NULL) {
         return;
     }
@@ -158,7 +159,7 @@ struct Result** traverseTree(struct Node* root) {
     return res;
 }
 
-int main() {
+/*int main() {
     struct Node* root = createNode();
 
     insert(root, 0xC0A80001); // 192.168.0.1
@@ -189,7 +190,7 @@ int main() {
 
     struct Result** susu = traverseTree(root);
          
-    for (int i=0; i<c; i++) {
+    for (int i=0; i<total; i++) {
         printf("ip: %s\n",intoa(susu[i]->ip));
         roaring_iterate(susu[i]->ports, iter, NULL);
     }
@@ -197,4 +198,4 @@ int main() {
     //    printf("%u\n",res[i]->ip);
 
     return 0;
-}
+}*/
