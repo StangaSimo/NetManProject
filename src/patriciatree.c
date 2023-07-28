@@ -158,43 +158,43 @@ struct Result** traverseTree(struct Node* root) {
     return res;
 }
 
-//int main() {
-//    struct Node* root = createNode();
-//
-//    insert(root, 0xC0A80001); // 192.168.0.1
-//    insert(root, 0xC0A80002); // 192.168.0.2
-//    insert(root, 0xC0A80101); // 192.168.1.1
-//    
-//    roaring_bitmap_t* a = search(root, 0xC0A80001);
-//    roaring_bitmap_t* b = search(root, 0xC0A80002);
-//    roaring_bitmap_t* o = search(root, 0xC0A80101);
-//    roaring_bitmap_t* d = search(root, 0xC0A88101);
-//
-//    if (d == NULL && a != NULL && b != NULL && o != NULL) {
-//        printf("funziona\n");
-//    }
-//    roaring_bitmap_add(a, 1234);
-//    roaring_bitmap_add(b, 1264);
-//    roaring_bitmap_add(o, 1294);
-//
-//    roaring_bitmap_add(a, 8239);
-//    roaring_bitmap_add(b, 9236);
-//    roaring_bitmap_add(o, 2634);
-//
-//    roaring_bitmap_add(a, 4345);
-//    roaring_bitmap_add(b, 4234);
-//    roaring_bitmap_add(o, 5234);
-//
-//    roaring_bitmap_add(a, 9999);
-//
-//    struct Result** susu = traverseTree(root);
-//         
-//    for (int i=0; i<c; i++) {
-//        printf("ip: %s\n",intoa(susu[i]->ip));
-//        roaring_iterate(susu[i]->ports, iter, NULL);
-//    }
-//
-//    //    printf("%u\n",res[i]->ip);
-//
-//    return 0;
-//}
+int main() {
+    struct Node* root = createNode();
+
+    insert(root, 0xC0A80001); // 192.168.0.1
+    insert(root, 0xC0A80002); // 192.168.0.2
+    insert(root, 0xC0A80101); // 192.168.1.1
+    
+    roaring_bitmap_t* a = search(root, 0xC0A80001);
+    roaring_bitmap_t* b = search(root, 0xC0A80002);
+    roaring_bitmap_t* o = search(root, 0xC0A80101);
+    roaring_bitmap_t* d = search(root, 0xC0A88101);
+
+    if (d == NULL && a != NULL && b != NULL && o != NULL) {
+        printf("funziona\n");
+    }
+    roaring_bitmap_add(a, 1234);
+    roaring_bitmap_add(b, 1264);
+    roaring_bitmap_add(o, 1294);
+
+    roaring_bitmap_add(a, 8239);
+    roaring_bitmap_add(b, 9236);
+    roaring_bitmap_add(o, 2634);
+
+    roaring_bitmap_add(a, 4345);
+    roaring_bitmap_add(b, 4234);
+    roaring_bitmap_add(o, 5234);
+
+    roaring_bitmap_add(a, 9999);
+
+    struct Result** susu = traverseTree(root);
+         
+    for (int i=0; i<c; i++) {
+        printf("ip: %s\n",intoa(susu[i]->ip));
+        roaring_iterate(susu[i]->ports, iter, NULL);
+    }
+
+    //    printf("%u\n",res[i]->ip);
+
+    return 0;
+}
