@@ -200,13 +200,13 @@ bool it(uint32_t value, void* p)
         struct Result** r = traverseTree(data->root,data->t_patricia);
         for (int i=0; i<data->t_patricia; i++) {
             char s[500];
-            sprintf(s, "ip: %s porte: ", intoa(ntohl(r[i]->ip)));
+            sprintf(s, "ip %s porte ", intoa(ntohl(r[i]->ip)));
             strcat(ips,s); 
             roaring_iterate(r[i]->ports, iter_port, NULL);
         }
     }  
 
-    sprintf(command, "rrdtool graph rrd_bin/graph/%s.png -w 1920 -h 1080 -D --start end-120s DEF:da1=%s.rrd:speed:AVERAGE LINE:da1#ff0000:'1' COMMENT:\"il blackhole è stato contattato da%s\"", intoa(ntohl(value)),rrdfile, ips);
+    sprintf(command, "rrdtool graph rrd_bin/graph/%s.png -w 1920 -h 1080 -D --start end-24h DEF:da1=%s.rrd:speed:AVERAGE LINE:da1#ff0000:'1' COMMENT:\"il blackhole è stato contattato da %s\"", intoa(ntohl(value)),rrdfile, ips);
     system(command);
     free(ips);
     return true; 
@@ -246,6 +246,7 @@ long rd_update(in_addr_t ip, long p,long base)
     char arg[100];
     const char** rrd_argv = calloc(sizeof(char*),1);
     sprintf(arg,"N:%ld",res);
+    printf("faccio update: %s p:%lu base: %lu",arg, p, base);
     rrd_argv[0] = arg;
     int ret = rrd_update_r(rrdfile,NULL,rrd_argc, rrd_argv); 
     if (ret != 0) {
@@ -337,7 +338,7 @@ void print_stats()
     printf("---------------------------------------------------------------------\n");
 
     cont++;
-    //if ((cont % GRAPH_SLEEP) == 0) { rd_graph(); }
+    if ((cont % GRAPH_SLEEP) == 0) { rd_graph(); }
     if (cont >= OPTIMIZE_SLEEP)
     {
         //hashmap_iterate(hash_BH, optimize_entry, NULL);
