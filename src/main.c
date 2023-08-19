@@ -598,11 +598,10 @@ int main(int argc, char *argv[])
 
     signal(SIGINT, sigproc);
     signal(SIGTERM, sigproc);
-    //signal(SIGALRM, my_sigalarm);
-    //alarm(ALARM_SLEEP);
+
     pcap_loop(pd, -1, dummyProcesssPacket, NULL);
     pcap_close(pd);
-    //alarm(0);
+
     roaring_bitmap_free(bitmap_BH);
     hashmap_iterate(hash_BH, free_hashmap, NULL);
     hashmap_free(hash_BH);
