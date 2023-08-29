@@ -76,15 +76,15 @@ bool iter(uint32_t value, void* p)
 }
 
 int z = 0;
-void traverse(struct Node* node, uint32_t ip, int level, struct Result** res) {
+void traverse(struct Node* node, uint32_t ip, int level, struct Result* res) {
     if (node == NULL) {
         return;
     }
 
     if (node->leaf) {
-        res[z] = malloc(sizeof(struct Result));
-        res[z]->ip = ip;
-        res[z]->ports = node->ports;
+        //res[z] = malloc(sizeof(struct Result));
+        res[z].ip = ip;
+        res[z].ports = node->ports;
         z = z+1;
     }
 
@@ -92,9 +92,35 @@ void traverse(struct Node* node, uint32_t ip, int level, struct Result** res) {
     traverse(node->right, (ip << 1) | 1, level + 1, res);
 }
 
-struct Result** traverseTree(struct Node* root,int total) {
+struct Result* traverseTree(struct Node* root,int total) {
     z = 0;
-    struct Result** res = calloc(total,sizeof(struct Result*));   
+    struct Result* res = calloc(total,sizeof(struct Result));   
     traverse(root, 0, 0, res);
     return res;
+}
+
+void traverseFree(struct Node* node, uint32_t ip, int level, struct Node** res) {
+    if (node == NULL) {
+        return;
+    }
+
+    if (node->leaf) {
+        res[z] = node;
+        z = z+1;
+    }
+
+    traverseFree(node->left, ip << 1, level + 1, res);
+    traverseFree(node->right, (ip << 1) | 1, level + 1, res);
+}
+
+
+void freePatricia(struct Node* root,int total) {
+    z = 0;
+    struct Node** res = calloc(total,sizeof(struct Node*));   
+    traverseFree(root, 0, 0, res);
+    for (int i=0; i<total; i++) {
+        roaring_free(res[i]->ports);
+        free(res[i]);
+    }
+    free(res);
 }

@@ -2,7 +2,7 @@
 .SUFFIXES: .c 
 
 main: src/main.c 
-	$(CC) src/main.c -o nmp -lrrd -lpcap -lncurses 
+	$(CC) -g -Werror -pedantic src/main.c -o nmp -lrrd -lpcap -lncurses 
 
 clean: 
 	-@rm nmp
