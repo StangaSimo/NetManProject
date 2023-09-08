@@ -21,7 +21,7 @@ struct Node* createNode() {
         newNode->leaf = 0;
         newNode->left = NULL;
         newNode->right = NULL;
-        newNode->ports = roaring_bitmap_create();;
+        newNode->ports = roaring_bitmap_create();
     }
     return newNode;
 }
@@ -71,7 +71,7 @@ roaring_bitmap_t* search(struct Node* root, uint32_t ip) {
 
 bool iter(uint32_t value, void* p)
 {
-    printf(" %u ",value);
+    printf(" %lu ",value);
     return true;
 }
 
@@ -111,6 +111,12 @@ void traverseFree(struct Node* node, uint32_t ip, int level, struct Node** res) 
 
     traverseFree(node->left, ip << 1, level + 1, res);
     traverseFree(node->right, (ip << 1) | 1, level + 1, res);
+
+    if ((!(node->leaf))&&(!(node == NULL))){
+        roaring_bitmap_free(node->ports);
+        free(node);
+    }
+
 }
 
 
@@ -119,7 +125,7 @@ void freePatricia(struct Node* root,int total) {
     struct Node** res = calloc(total,sizeof(struct Node*));   
     traverseFree(root, 0, 0, res);
     for (int i=0; i<total; i++) {
-        roaring_free(res[i]->ports);
+        roaring_bitmap_free(res[i]->ports);
         free(res[i]);
     }
     free(res);

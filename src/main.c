@@ -26,7 +26,7 @@
 #include <ifaddrs.h>
 #include <netinet/tcp.h>
 //#include <netinet/udp.h>
-#include <rrdlib.h>
+#include <rrd.h>
 #include "../c-hashmap/map.c"
 #include "patriciatree.c"
 
@@ -103,13 +103,6 @@ char *__intoa(unsigned int addr, char *buf, u_short bufLen)
 
 /*************************************************/
 
-void optimize_entry(void *key, size_t ksize, uintptr_t d, void *usr)
-{
-    DATA *data = (DATA *)d;
-    roaring_bitmap_run_optimize(data->bitmap);
-}
-
-/*************************************************/
 
 static char buf[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"];
 char *intoa(unsigned int addr) { return (__intoa(addr, buf, sizeof(buf))); }
@@ -473,11 +466,11 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 
                 roaring_bitmap_t* bitmap = search(data->root,(uint32_t)ip.ip_src.s_addr);
                 if (bitmap != NULL) {
-                    roaring_bitmap_add(bitmap, tcp_hdr.th_dport);
+                    roaring_bitmap_add(bitmap, ntohs(tcp_hdr.th_dport));
                 } else {
                     data->t_patricia = insert(data->root, (uint32_t)ip.ip_src.s_addr, data->t_patricia);
                     roaring_bitmap_t* bitmap_c = search(data->root,(uint32_t)ip.ip_src.s_addr);
-                    roaring_bitmap_add(bitmap_c, tcp_hdr.th_dport);
+                    roaring_bitmap_add(bitmap_c, ntohs(tcp_hdr.th_dport));
                 }
             }
             else // DST not present
@@ -488,13 +481,13 @@ void dummyProcesssPacket(u_char *_deviceId, const struct pcap_pkthdr *h, const u
                 dst_data->rx_packet = 1;
                 dst_data->tx_packet = 0;
                 dst_data->time_src = h->ts;
-                dst_data->time_dst = h->ts;
+                dst_data->time_dst = h->ts;                
                 dst_data->t_patricia = 0;
                 dst_data->root = createNode();
 
-                dst_data->t_patricia = insert(dst_data->root, (uint32_t)ip.ip_src.s_addr, dst_data->t_patricia);
-                roaring_bitmap_t* b = search(dst_data->root,(uint32_t)ip.ip_src.s_addr);
-                roaring_bitmap_add(b, tcp_hdr.th_dport);
+                dst_data->t_patricia = insert(dst_data->root, (uint32_t)ip.ip_src.s_addr, dst_data->t_patricia);               
+                roaring_bitmap_t* b = search(dst_data->root,(uint32_t)ip.ip_src.s_addr); 
+                roaring_bitmap_add(b, ntohs(tcp_hdr.th_dport));
 
                 in_addr_t *s_addr = malloc(sizeof(in_addr_t));
                 memcpy(s_addr, &ip.ip_dst.s_addr, sizeof(in_addr_t));
